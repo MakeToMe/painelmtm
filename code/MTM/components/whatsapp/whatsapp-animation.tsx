@@ -39,6 +39,18 @@ export function WhatsAppAnimation() {
             animationData={animationData}
             loop={true}
             className="w-full h-auto max-w-lg mx-auto"
+            rendererSettings={{
+              preserveAspectRatio: 'xMidYMid slice',
+              progressiveLoad: true,
+              hideOnTransparent: true,
+              filterSize: {
+                width: '200%',
+                height: '200%',
+                x: '-50%',
+                y: '-50%',
+              },
+              fontFamily: 'Arial, Helvetica, sans-serif'
+            }}
           />
         )}
       </div>

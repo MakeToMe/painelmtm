@@ -1,4 +1,4 @@
-import { supabase } from './client';
+import { supabase } from '@/lib/supabase';
 import { AppData } from '@/types/app-data';
 
 export async function getAppData(): Promise<AppData[]> {

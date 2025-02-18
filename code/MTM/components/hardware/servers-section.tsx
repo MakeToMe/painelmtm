@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { register } from 'swiper/element/bundle';
+import { ServerIcon } from 'lucide-react';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -31,11 +32,27 @@ export function ServersSection() {
         
         <swiper-container
           effect="material"
-          slides-per-view="2"
+          slides-per-view="4.5"
           centered-slides="true"
           material-effect-slide-split-ratio="0.25"
-          space-between="30"
+          space-between="24"
           grab-cursor="true"
+          loop="true"
+          initial-slide="1"
+          breakpoints='{
+            "320": {
+              "slidesPerView": 1.5,
+              "spaceBetween": 16
+            },
+            "600": {
+              "slidesPerView": 2.5,
+              "spaceBetween": 20
+            },
+            "1024": {
+              "slidesPerView": 4.5,
+              "spaceBetween": 24
+            }
+          }'
           class="w-full max-w-[1200px] mx-auto"
         >
           <swiper-slide>
@@ -49,12 +66,12 @@ export function ServersSection() {
           </swiper-slide>
 
           <swiper-slide>
-            <div className="rounded-2xl overflow-hidden h-[600px] bg-[#F5F5F5]">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb"
-                alt="Mulher com brincos"
-                className="w-full h-full object-cover"
-              />
+            <div className="flex min-h-[400px] flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50 bg-muted">
+              <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100/30 dark:bg-emerald-900/30">
+                  <ServerIcon className="h-10 w-10 text-emerald-500" />
+                </div>
+              </div>
             </div>
           </swiper-slide>
 

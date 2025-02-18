@@ -64,22 +64,24 @@ export function VMGrid() {
     const swiperEl = document.querySelector('.vms-swiper');
     if (swiperEl) {
       Object.assign(swiperEl, {
-        slidesPerView: 'auto',
-        spaceBetween: 20,
+        slidesPerView: 4.5,
+        spaceBetween: 16,
         centeredSlides: true,
         grabCursor: true,
+        initialSlide: 1,
+        loop: true,
         breakpoints: {
           320: {
             slidesPerView: 1.5,
-            spaceBetween: 10
+            spaceBetween: 12
           },
           600: {
             slidesPerView: 2.5,
-            spaceBetween: 15
+            spaceBetween: 14
           },
           1024: {
-            slidesPerView: 3.5,
-            spaceBetween: 20
+            slidesPerView: 4.5,
+            spaceBetween: 16
           }
         }
       });
@@ -106,7 +108,28 @@ export function VMGrid() {
           <div className="relative px-2">
             <style>{styles}</style>
             
-            <swiper-container className="vms-swiper">
+            <swiper-container 
+              class="vms-swiper"
+              slides-per-view="auto"
+              space-between="16"
+              grab-cursor="true"
+              loop="true"
+              initial-slide="0"
+              breakpoints='{
+                "320": {
+                  "slidesPerView": "auto",
+                  "spaceBetween": 12
+                },
+                "600": {
+                  "slidesPerView": "auto",
+                  "spaceBetween": 14
+                },
+                "1024": {
+                  "slidesPerView": "auto",
+                  "spaceBetween": 16
+                }
+              }'
+            >
               {vms.map((vm, index) => (
                 <swiper-slide key={vm.uid || `vm-${index}`}>
                   <div className="swiper-material-wrapper">

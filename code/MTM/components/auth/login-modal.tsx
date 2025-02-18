@@ -3,19 +3,25 @@
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useState, useEffect } from "react";
 import Image from "next/image";
+import { useAuth } from '@/contexts/auth-context'
+import { useRouter } from 'next/navigation'
 
 type LoginMethod = 'whatsapp' | 'email';
-type ModalState = 'login' | 'criarConta';
+type ModalState = 'login' | 'criarConta' | 'esqueceuSenha';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialState?: 'login' | 'criarConta';
+  initialState?: ModalState;
 }
 
 export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginModalProps) {
+  const { signIn, signUp } = useAuth()
+  const router = useRouter()
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('whatsapp');
   const [modalState, setModalState] = useState<ModalState>(initialState);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Força o estado inicial quando o modal é aberto
   useEffect(() => {
@@ -28,7 +34,6 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
     email: '',
     whatsapp: '',
     nome: '',
-    documento: '',
     senha: ''
   });
 
@@ -41,103 +46,169 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
       .slice(0, 15);
   };
 
-  // Função para formatar CPF/CNPJ
-  const formatDocument = (value: string) => {
-    value = value.replace(/\D/g, '');
-    if (value.length <= 11) {
-      return value
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    }
-    return value
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d)/, '$1-$2');
-  };
-
   const handleInputChange = (field: string, value: string) => {
     if (field === 'whatsapp') {
       value = formatWhatsApp(value);
-    } else if (field === 'documento') {
-      value = formatDocument(value);
     }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (modalState === 'login') {
+        const identifier = loginMethod === 'email' ? formData.email : formData.whatsapp
+        
+        // Validar dados
+        if (!identifier) {
+          throw new Error(`${loginMethod === 'email' ? 'Email' : 'WhatsApp'} é obrigatório`)
+        }
+        if (!formData.senha) {
+          throw new Error('Senha é obrigatória')
+        }
+
+        console.log('Tentando login com:', {
+          identifier,
+          loginMethod,
+          hasPassword: !!formData.senha
+        })
+
+        await signIn(
+          identifier,
+          formData.senha,
+          loginMethod
+        )
+        console.log('Login bem sucedido');
+        onClose()
+        router.push('/dashboard');
+      } else if (modalState === 'criarConta') {
+        // Validar dados de cadastro
+        if (!formData.email) throw new Error('Email é obrigatório')
+        if (!formData.senha) throw new Error('Senha é obrigatória')
+        if (!formData.nome) throw new Error('Nome é obrigatório')
+        if (!formData.whatsapp) throw new Error('WhatsApp é obrigatório')
+
+        await signUp(formData.email, formData.senha, {
+          nome: formData.nome,
+          whatsapp: formData.whatsapp,
+          email: formData.email
+        })
+        onClose()
+      }
+    } catch (err: any) {
+      console.error('Erro no handleSubmit:', err)
+      setError(err instanceof Error ? err.message : 'Ocorreu um erro. Tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Função para recuperar senha
+  const handleRecoverPassword = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('https://rarwhk.rardevops.com/webhook/recovery_pass', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          acao: 'recuperarSenha',
+          email: formData.email
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.email === 'incorreto') {
+        setError('E-mail não encontrado')
+        return
+      }
+
+      if (data.email === 'correto') {
+        // Mostrar mensagem de sucesso e voltar para login
+        alert('Uma nova senha foi enviada para seu e-mail!')
+        setModalState('login')
+        return
+      }
+
+      // Se chegou aqui é porque houve algum erro inesperado
+      throw new Error('Erro ao processar sua solicitação')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao solicitar recuperação de senha')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
-          <Dialog.Panel className="relative w-full max-w-5xl rounded-2xl bg-zinc-900 p-6 shadow-xl my-4">
-            {/* Botão de fechar */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-zinc-800 transition-colors bg-zinc-800/50 z-50"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-6 w-6 text-zinc-400" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M6 18L18 6M6 6l12 12" 
-                />
-              </svg>
-            </button>
-
-            <div className="flex flex-col lg:flex-row gap-8">
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="w-full max-w-3xl bg-zinc-900 rounded-2xl overflow-hidden">
+            <div className="flex flex-row h-[580px] md:h-[620px]">
               {/* Lado Esquerdo - Imagem */}
-              <div className="lg:flex-1 relative rounded-xl overflow-hidden h-48 lg:h-auto">
+              <div className="hidden md:block w-1/2 relative overflow-hidden">
                 <Transition
                   show={true}
-                  enter="transition-opacity duration-500"
+                  enter="transition-opacity duration-300"
                   enterFrom="opacity-0"
                   enterTo="opacity-100"
-                  leave="transition-opacity duration-500"
-                  leaveFrom="opacity-100"
-                  leaveTo="opacity-0"
                 >
                   <img 
                     src={modalState === 'login' 
                       ? "https://studio.rardevops.com/storage/v1/object/public/mtm/login.jpg"
-                      : "https://studio.rardevops.com/storage/v1/object/public/mtm/criar_conta.jpg"
+                      : modalState === 'criarConta' 
+                        ? "https://studio.rardevops.com/storage/v1/object/public/mtm/criar_conta.jpg"
+                        : "https://studio.rardevops.com/storage/v1/object/public/mtm/password-manager.png"
                     }
-                    alt={modalState === 'login' ? "Login" : "Criar Conta"}
+                    alt={modalState === 'login' ? "Login" : modalState === 'criarConta' ? "Criar Conta" : "ESQUECEU A SENHA"}
                     className="w-full h-full object-cover"
                   />
                 </Transition>
               </div>
 
               {/* Lado Direito - Formulário */}
-              <div className="lg:flex-1 flex flex-col justify-between items-center py-4 lg:py-8">
-                <div className="w-full flex flex-col items-center">
-                  {/* Ícone */}
-                  <div className="w-16 lg:w-20 h-16 lg:h-20 bg-zinc-800/50 rounded-2xl p-4 backdrop-blur-sm border border-zinc-700/50 mb-4 lg:mb-6">
+              <div className="w-full md:w-1/2 p-6 md:p-8 lg:p-10 flex flex-col overflow-y-auto">
+                <div className="flex-1">
+                  {/* Botão Fechar */}
+                  <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                  >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  {/* Ícone e Título */}
+                  <div className="w-12 h-12 lg:w-14 lg:h-14 mx-auto mb-4 lg:mb-6">
                     {modalState === 'login' ? (
                       <svg className="w-full h-full text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/>
                       </svg>
-                    ) : (
+                    ) : modalState === 'criarConta' ? (
                       <svg className="w-full h-full text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-full h-full text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
                       </svg>
                     )}
                   </div>
 
-                  <h2 className="text-xl lg:text-2xl font-bold text-white mb-2 text-center">
-                    {modalState === 'login' ? 'Bem-vindo de volta!' : 'Criar Conta'}
+                  <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-white mb-2 text-center">
+                    {modalState === 'login' ? 'Bem-vindo de volta!' : modalState === 'criarConta' ? 'Criar Conta' : 'ESQUECEU A SENHA'}
                   </h2>
 
                   {modalState === 'login' && (
-                    <p className="text-sm lg:text-base text-gray-400 mb-6 lg:mb-8 text-center">
+                    <p className="text-sm lg:text-base text-gray-400 mb-4 lg:mb-6 text-center">
                       Escolha como deseja fazer login
                     </p>
                   )}
@@ -145,7 +216,7 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
                   {modalState === 'login' ? (
                     <>
                       {/* Container dos botões de escolha */}
-                      <div className="flex gap-2 p-1 bg-zinc-800 rounded-lg mb-6 lg:mb-8 w-full">
+                      <div className="flex gap-2 p-1 bg-zinc-800 rounded-lg mb-4 w-full">
                         <button 
                           onClick={() => setLoginMethod('whatsapp')}
                           className={`flex-1 flex items-center justify-center gap-2 px-3 lg:px-4 py-2 rounded-md transition-all duration-300 ${
@@ -155,7 +226,7 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
                           }`}
                         >
                           <svg className="w-4 lg:w-5 h-4 lg:h-5" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.1.824zm-3.423-14.416c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm.029 18.88c-1.161 0-2.305-.292-3.318-.844l-3.677.964.984-3.595c-.607-1.052-.927-2.246-.926-3.468.001-3.825 3.113-6.937 6.937-6.937 1.856.001 3.598.723 4.907 2.034 1.31 1.311 2.031 3.054 2.03 4.908-.001 3.825-3.113 6.938-6.937 6.938z"/>
+                            <path d="M16.75 13.96c.25.13.41.2.46.3.06.11.04.61-.21 1.18-.2.56-1.24 1.1-1.7 1.12-.46.02-.47.36-2.96-.73-2.49-1.09-3.99-3.75-4.11-3.92-.12-.17-.96-1.38-.92-2.61.05-1.22.69-1.8.95-2.04.24-.26.51-.29.68-.26h.47c.15 0 .36-.06.55.45l.69 1.87c.06.13.1.28.01.44l-.27.41-.39.42c-.12.12-.26.25-.12.5.12.26.62 1.09 1.32 1.78.91.88 1.71 1.17 1.95 1.3.24.14.39.12.54-.04l.81-.94c.19-.25.35-.19.58-.11l1.67.88M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-1.97 0-3.8-.57-5.35-1.55L2 22l1.55-4.65A9.969 9.969 0 0 1 2 12 10 10 0 0 1 12 2m0 2a8 8 0 0 0-8 8c0 1.72.54 3.31 1.46 4.61L4.5 19.5l2.89-.96A7.95 7.95 0 0 0 12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/>
                           </svg>
                           <span className="text-sm lg:text-base">WhatsApp</span>
                         </button>
@@ -175,7 +246,7 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
                       </div>
 
                       {/* Input de Login */}
-                      <div className="w-full mb-6 lg:mb-8">
+                      <div className="w-full space-y-3 mb-4">
                         <input
                           type={loginMethod === 'email' ? 'email' : 'tel'}
                           placeholder={loginMethod === 'email' ? 'Digite seu E-mail' : 'Digite seu WhatsApp'}
@@ -183,23 +254,23 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
                           onChange={(e) => handleInputChange(loginMethod === 'email' ? 'email' : 'whatsapp', e.target.value)}
                           className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
                         />
+                        <input
+                          type="password"
+                          placeholder="Digite sua senha"
+                          value={formData.senha}
+                          onChange={(e) => handleInputChange('senha', e.target.value)}
+                          className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
+                        />
                       </div>
                     </>
-                  ) : (
+                  ) : modalState === 'criarConta' ? (
                     // Formulário de Criar Conta
-                    <div className="space-y-3 lg:space-y-4 mb-6 lg:mb-8 w-full">
+                    <div className="space-y-3 mb-4 w-full">
                       <input
                         type="text"
                         placeholder="Nome completo"
                         value={formData.nome}
                         onChange={(e) => handleInputChange('nome', e.target.value)}
-                        className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
-                      />
-                      <input
-                        type="text"
-                        placeholder="CPF ou CNPJ"
-                        value={formData.documento}
-                        onChange={(e) => handleInputChange('documento', e.target.value)}
                         className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
                       />
                       <input
@@ -224,23 +295,66 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
                         className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
                       />
                     </div>
+                  ) : (
+                    // Formulário de ESQUECEU A SENHA
+                    <div className="space-y-3 mb-4 w-full">
+                      <input
+                        type="email"
+                        placeholder="E-mail"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 transition-colors text-sm lg:text-base"
+                      />
+                    </div>
                   )}
 
                   {/* Botão Confirmar */}
-                  <button 
-                    className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors text-sm lg:text-base"
-                  >
-                    CONFIRMAR
-                  </button>
-                </div>
+                  <form onSubmit={modalState === 'esqueceuSenha' ? handleRecoverPassword : handleSubmit}>
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className={`w-full px-4 py-2.5 md:px-6 md:py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors text-sm lg:text-base mb-2 ${
+                        loading ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {loading ? 'PROCESSANDO...' : modalState === 'esqueceuSenha' ? 'RECUPERAR SENHA' : 'CONFIRMAR'}
+                    </button>
+                  </form>
 
-                {/* Botão Alternar Estado */}
-                <button 
-                  onClick={() => setModalState(state => state === 'login' ? 'criarConta' : 'login')}
-                  className="w-full px-6 py-3 bg-transparent hover:bg-zinc-800 text-gray-400 hover:text-white font-medium rounded-lg transition-colors border border-zinc-700 mt-6 lg:mt-8 text-sm lg:text-base"
-                >
-                  {modalState === 'login' ? 'CRIAR CONTA' : 'FAZER LOGIN'}
-                </button>
+                  {/* Mensagem de erro */}
+                  {error && (
+                    <p className="mt-1 mb-2 text-red-500 text-sm text-center">
+                      {error}
+                    </p>
+                  )}
+
+                  {/* Botões de Ação - Sempre visíveis no final */}
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => {
+                        if (modalState === 'login') {
+                          setModalState('criarConta')
+                        } else if (modalState === 'criarConta') {
+                          setModalState('login')
+                        } else {
+                          setModalState('login')
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 md:px-6 md:py-3 bg-transparent hover:bg-zinc-800 text-gray-400 hover:text-white font-medium rounded-lg transition-colors border border-zinc-700 text-sm lg:text-base"
+                    >
+                      {modalState === 'login' ? 'CRIAR CONTA' : modalState === 'criarConta' ? 'FAZER LOGIN' : 'VOLTAR PARA LOGIN'}
+                    </button>
+
+                    {modalState === 'login' && (
+                      <button 
+                        onClick={() => setModalState('esqueceuSenha')}
+                        className="w-full px-4 py-2.5 md:px-6 md:py-3 bg-transparent hover:bg-zinc-800 text-gray-400 hover:text-white font-medium rounded-lg transition-colors border border-zinc-700 text-sm lg:text-base"
+                      >
+                        ESQUECEU A SENHA?
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </Dialog.Panel>

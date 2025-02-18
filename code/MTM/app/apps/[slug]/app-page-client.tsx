@@ -4,15 +4,12 @@ import { AppData } from "@/lib/app-data";
 import { AppDescription } from "@/types/app-description";
 import { useEffect, useState } from "react";
 import { getAppDescription } from "@/lib/supabase/app-descriptions";
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { AtomicOrbital } from '@/components/ui/atomic-orbital';
 import Image from 'next/image';
 import { FAQSection } from '@/components/apps/faq-section';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface AppPageClientProps {
   app: AppData;

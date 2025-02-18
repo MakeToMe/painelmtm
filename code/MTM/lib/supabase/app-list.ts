@@ -1,12 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { AppData } from '@/lib/app-data';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  db: {
-    schema: 'mtm'
-  }
-});
 
 export async function getAppList(plano?: 'Basic' | 'IA'): Promise<AppData[]> {
   try {

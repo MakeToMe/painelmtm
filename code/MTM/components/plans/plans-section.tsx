@@ -30,13 +30,14 @@ const styles = `
     max-width: 1200px;
     margin: 0 auto;
     height: 323px;
-    padding: 20px 10px;
+    padding: 20px 0;
+    overflow: visible;
   }
   .apps-swiper swiper-slide, .ia-apps-swiper swiper-slide {
     height: 100%;
     border-radius: var(--swiper-material-slide-border-radius);
     overflow: hidden;
-    width: 300px !important;
+    width: 280px !important;
   }
   .apps-swiper .swiper-material-wrapper, .ia-apps-swiper .swiper-material-wrapper {
     width: 100%;
@@ -65,43 +66,6 @@ export function PlansSection() {
       setBasicApps(basic);
       setIaApps(ia);
     });
-
-    // Configuração dos Swipers
-    const basicSwiperEl = document.querySelector('.apps-swiper');
-    const iaSwiperEl = document.querySelector('.ia-apps-swiper');
-
-    const swiperConfig = {
-      slidesPerView: 'auto',
-      spaceBetween: 20,
-      centeredSlides: true,
-      grabCursor: true,
-      initialSlide: 1,
-      loop: true,
-      breakpoints: {
-        320: {
-          slidesPerView: 1.5,
-          spaceBetween: 10
-        },
-        600: {
-          slidesPerView: 2.5,
-          spaceBetween: 15
-        },
-        1024: {
-          slidesPerView: 3.5,
-          spaceBetween: 20
-        }
-      }
-    };
-
-    if (basicSwiperEl) {
-      Object.assign(basicSwiperEl, swiperConfig);
-      basicSwiperEl.initialize();
-    }
-
-    if (iaSwiperEl) {
-      Object.assign(iaSwiperEl, swiperConfig);
-      iaSwiperEl.initialize();
-    }
   }, []);
 
   return (
@@ -124,10 +88,17 @@ export function PlansSection() {
           </motion.div>
         </div>
 
-        <div className="relative px-2">
+        <div className="relative max-w-[1200px] mx-auto px-6 overflow-visible">
           <style>{styles}</style>
           
-          <swiper-container className="apps-swiper">
+          <swiper-container 
+            class="apps-swiper"
+            slides-per-view="auto"
+            space-between="20"
+            grab-cursor="true"
+            loop="true"
+            initial-slide="0"
+          >
             {basicApps.map((app) => (
               <swiper-slide key={app.uid}>
                 <div className="swiper-material-wrapper">
@@ -196,8 +167,17 @@ export function PlansSection() {
           </motion.div>
         </div>
 
-        <div className="relative px-2">
-          <swiper-container className="ia-apps-swiper">
+        <div className="relative max-w-[1200px] mx-auto px-6 overflow-visible">
+          <style>{styles}</style>
+          
+          <swiper-container 
+            class="ia-apps-swiper"
+            slides-per-view="auto"
+            space-between="20"
+            grab-cursor="true"
+            loop="true"
+            initial-slide="0"
+          >
             {iaApps.map((app) => (
               <swiper-slide key={app.uid}>
                 <div className="swiper-material-wrapper">

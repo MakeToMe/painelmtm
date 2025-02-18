@@ -6,7 +6,7 @@ import { ChatContainer } from "./chat-container";
 import { VisitorStorage } from "@/lib/storage/visitor-storage";
 import { sendVisitorMessage } from "@/lib/services/visitor-service";
 import { getChatHistory, ChatMessage as DBChatMessage } from "@/lib/supabase/chat";
-import { supabase } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
   content: string;

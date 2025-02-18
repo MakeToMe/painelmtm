@@ -1,18 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { AppDescription } from '@/types/app-description';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
-
-// Criar cliente com schema personalizado
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  db: {
-    schema: 'mtm'
-  }
-});
-
-const FIXED_UID = '3050e4e4-6e8f-4037-af94-711c42be7c9f';
 
 // Cache local para evitar refreshes desnecessários
 let appDescriptionCache: { [key: string]: AppDescription } = {};
+
+const FIXED_UID = '3050e4e4-6e8f-4037-af94-711c42be7c9f';
 
 export async function getAppDescription(uid: string): Promise<AppDescription | null> {
   if (!uid) {

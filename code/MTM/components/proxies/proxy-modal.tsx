@@ -3,10 +3,7 @@
 import { Proxy } from "@/types/proxy";
 import { useEffect, useState } from "react";
 import { getProxies } from "@/lib/supabase/proxies";
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/constants';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from '@/lib/supabase';
 
 interface ProxyModalProps {
   isOpen: boolean;

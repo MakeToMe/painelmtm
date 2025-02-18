@@ -1,4 +1,4 @@
-import { supabase } from './client';
+import { supabase } from '@/lib/supabase';
 import { VMData } from '@/types/vm-data';
 
 export async function getVMData(): Promise<VMData[]> {

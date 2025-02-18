@@ -69,7 +69,7 @@ export function Navbar() {
                   setModalState('login');
                   setIsLoginModalOpen(true);
                 }}
-                className="px-6 py-2 rounded-lg text-sm font-medium text-white bg-emerald-500/20 hover:bg-emerald-500/30 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-500/20 hover:bg-emerald-500/30 rounded-lg transition-colors"
               >
                 Área do Cliente
               </button>
