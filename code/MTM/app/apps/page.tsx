@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { AppsNavbar } from '@/components/apps/navbar';
 import { CategoryBar } from '@/components/apps/category-bar';
 import { AppData } from '@/types/app-data';
-import { getAppData } from '@/lib/supabase/apps';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ParticlesAnimation } from '@/components/apps/particles-animation';
@@ -17,7 +17,13 @@ export default function AppsPage() {
 
   useEffect(() => {
     const loadApps = async () => {
-      const data = await getAppData();
+      const { data } = await supabase
+        .from('list_apps')
+        .select('*')
+        .order('ordem');
+
+      if (!data) return;
+      
       setApps(data);
       
       // Extrair categorias únicas e ordenar alfabeticamente

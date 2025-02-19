@@ -1,0 +1,46 @@
+version: "3.7"
+
+services:
+  mtm-front:
+    image: fmguardia/painelmtm:v0.1
+    networks:
+      - network_public
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_SUPABASE_URL=https://kcpgvnvqpcqflrqhwxjf.supabase.co
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjcGd2bnZxcGNxZmxycWh3eGpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDMxNzg1NDgsImV4cCI6MjAxODc1NDU0OH0.HCYbGvUEDQMUDl8cZeqJoHXVgQQpJKwDPVQQANPXbSg
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        parallelism: 0
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.mtm-front.rule=Host(`painel.maketome.com.br`)"
+        - "traefik.http.routers.mtm-front.entrypoints=websecure"
+        - "traefik.http.routers.mtm-front.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.mtm-front.loadbalancer.server.port=3000"
+        - "traefik.http.middlewares.mtm-security.headers.sslRedirect=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsSeconds=31536000"
+        - "traefik.http.middlewares.mtm-security.headers.forceSTSHeader=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsIncludeSubdomains=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsPreload=true"
+        - "traefik.http.middlewares.mtm-security.headers.customFrameOptionsValue=SAMEORIGIN"
+        - "traefik.http.routers.mtm-front.middlewares=mtm-security"
+
+networks:
+  network_public:
+    external: true
+    name: network_public

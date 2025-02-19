@@ -1,0 +1,66 @@
+version: "3.7"
+
+services:
+  mtm-front:
+    image: fmguardia/painelmtm:v0.2
+    networks:
+      - network_public
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    ports:
+      - "3000:3000"
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        parallelism: 0
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        # Traefik configurações básicas
+        - "traefik.enable=true"
+        - "traefik.http.routers.mtm-front.rule=Host(`painel.maketome.com.br`)"
+        - "traefik.http.routers.mtm-front.entrypoints=websecure"
+        - "traefik.http.routers.mtm-front.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.mtm-front.loadbalancer.server.port=3000"
+        
+        # Middlewares de segurança
+        - "traefik.http.middlewares.mtm-security.headers.sslRedirect=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsSeconds=31536000"
+        - "traefik.http.middlewares.mtm-security.headers.forceSTSHeader=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsIncludeSubdomains=true"
+        - "traefik.http.middlewares.mtm-security.headers.stsPreload=true"
+        - "traefik.http.middlewares.mtm-security.headers.customFrameOptionsValue=SAMEORIGIN"
+        
+        # Aplicar middleware de segurança
+        - "traefik.http.routers.mtm-front.middlewares=mtm-security"
+        
+        # Compressão para melhor performance
+        - "traefik.http.middlewares.mtm-compress.compress=true"
+        - "traefik.http.routers.mtm-front.middlewares=mtm-compress"
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  network_public:
+    external: true
+    name: network_public

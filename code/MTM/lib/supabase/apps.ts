@@ -1,18 +1,44 @@
 import { supabase } from '@/lib/supabase';
 import { AppData } from '@/types/app-data';
 
-export async function getAppData(): Promise<AppData[]> {
-  const { data, error } = await supabase
-    .from('list_apps')
-    .select('*')
-    .order('ordem');
+interface AppDataResponse {
+  apps: AppData[];
+  iaApps: AppData[];
+}
 
-  if (error) {
-    console.error('Erro ao buscar apps:', error);
-    return [];
+export async function getAppData(): Promise<AppDataResponse> {
+  try {
+    console.log('Buscando apps...');
+    
+    const { data, error } = await supabase
+      .from('list_apps')
+      .select('*')
+      .order('ordem');
+
+    if (error) {
+      console.error('Erro ao buscar apps:', error);
+      return { apps: [], iaApps: [] };
+    }
+
+    if (!data) {
+      console.log('Nenhum app encontrado');
+      return { apps: [], iaApps: [] };
+    }
+
+    console.log('Total de apps encontrados:', data.length);
+
+    // Separar os apps por plano
+    const apps = data.filter(app => app.plano === 'Basic');
+    const iaApps = data.filter(app => app.plano === 'IA');
+
+    console.log('Apps Basic:', apps.length);
+    console.log('Apps IA:', iaApps.length);
+
+    return { apps, iaApps };
+  } catch (error) {
+    console.error('Erro inesperado ao buscar apps:', error);
+    return { apps: [], iaApps: [] };
   }
-
-  return data || [];
 }
 
 export async function getAppBySlug(slug: string): Promise<AppData | null> {
@@ -45,6 +71,7 @@ export async function getAppBySlug(slug: string): Promise<AppData | null> {
     plano: data.plano,
     preco: data.preco,
     ordem: data.ordem,
-    icone: data.icone
+    icone: data.icone,
+    slug: data.slug
   };
 }
