@@ -33,73 +33,108 @@ const styles = `
     padding: 20px 0;
     overflow: visible;
   }
+
   .apps-swiper swiper-slide, .ia-apps-swiper swiper-slide {
     height: 100%;
     border-radius: var(--swiper-material-slide-border-radius);
     overflow: hidden;
     width: 280px !important;
   }
+
   .apps-swiper .swiper-material-wrapper, .ia-apps-swiper .swiper-material-wrapper {
     width: 100%;
     height: 100%;
   }
+
   .apps-swiper .swiper-material-content, .ia-apps-swiper .swiper-material-content {
     width: 100%;
     height: 100%;
   }
 `;
 
-export function PlansSection() {
-  const [basicApps, setBasicApps] = useState<AppData[]>([]);
+export function ModulesSection() {
+  const [apps, setApps] = useState<AppData[]>([]);
   const [iaApps, setIaApps] = useState<AppData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     register();
 
-    // Buscar apps
-    getAppData().then(data => {
-      console.log('Todos os apps carregados:', data);
-      const basic = data.filter(app => app.plano === 'Basic');
-      const ia = data.filter(app => app.plano === 'IA');
-      console.log('Apps Basic:', basic);
-      console.log('Apps IA:', ia);
-      setBasicApps(basic);
-      setIaApps(ia);
-    });
+    const loadApps = async () => {
+      try {
+        const data = await getAppData();
+        setApps(data.apps || []);
+        setIaApps(data.iaApps || []);
+        
+        // Logs temporários para debug
+        console.log('Quantidade de apps Basic:', data.apps?.length || 0);
+        console.log('Quantidade de apps IA:', data.iaApps?.length || 0);
+      } catch (error) {
+        console.error('Erro ao carregar apps:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadApps();
   }, []);
+
+  const handleSwiperLoad = (event: any) => {
+    const swiper = event.target;
+    // Força a atualização do Swiper após o carregamento
+    setTimeout(() => {
+      swiper.swiper?.update();
+    }, 100);
+  };
+
+  if (isLoading) {
+    return (
+      <section id="modulos" className="py-20 overflow-hidden">
+        <div className="w-full max-w-[1200px] mx-auto px-4 mb-16">
+          <div className="text-center">
+            <p className="text-gray-400">Carregando módulos...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <LazyMotion features={domAnimation}>
-      <section id="planos" className="relative py-16 overflow-hidden">
+      <section id="modulos" className="py-20 overflow-hidden">
         <div className="w-full max-w-[1200px] mx-auto px-4 mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-20%" }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col items-center text-center"
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-center"
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Apps do Módulo Basic
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Módulos Disponíveis
             </h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto">
-              Explore nossa seleção de aplicativos essenciais para o seu negócio. Cada aplicativo foi cuidadosamente escolhido para oferecer o máximo de funcionalidade e eficiência.
+            <p className="text-xl text-gray-400">
+              Explore nossa biblioteca de módulos prontos para uso
             </p>
           </motion.div>
         </div>
 
-        <div className="relative max-w-[1200px] mx-auto px-6 overflow-visible">
-          <style>{styles}</style>
-          
-          <swiper-container 
+        <style>{styles}</style>
+
+        <div className="apps-container">
+          <h3 className="text-2xl font-bold text-white mb-8 text-center">
+            Módulos Base
+          </h3>
+          <swiper-container
             class="apps-swiper"
             slides-per-view="auto"
-            space-between="20"
-            grab-cursor="true"
+            space-between="24"
+            centered-slides="true"
             loop="true"
             initial-slide="0"
+            onswiper={handleSwiperLoad}
           >
-            {basicApps.map((app) => (
+            {apps.map((app) => (
               <swiper-slide key={app.uid}>
                 <div className="swiper-material-wrapper">
                   <div className="swiper-material-content">
@@ -147,39 +182,21 @@ export function PlansSection() {
               </swiper-slide>
             ))}
           </swiper-container>
-        </div>
 
-        {/* Seção de Apps de IA */}
-        <div className="w-full max-w-[1200px] mx-auto px-4 mt-24 mb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-20%" }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col items-center text-center"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Apps do Módulo de Inteligência Artificial
-            </h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto">
-              Explore nossa seleção de aplicativos de IA projetados para otimizar seus processos e impulsionar a inovação em seu negócio. Cada solução foi desenvolvida para trazer mais inteligência e automação para suas operações.
-            </p>
-          </motion.div>
-        </div>
-
-        <div className="relative max-w-[1200px] mx-auto px-6 overflow-visible">
-          <style>{styles}</style>
+          <h3 className="text-2xl font-bold text-white mb-8 mt-16 text-center">
+            Módulos IA
+          </h3>
           
-          <swiper-container 
+          <swiper-container
             class="ia-apps-swiper"
             slides-per-view="auto"
-            space-between="20"
-            grab-cursor="true"
+            space-between="24"
+            centered-slides="true"
             loop="true"
             initial-slide="0"
           >
-            {iaApps.map((app) => (
-              <swiper-slide key={app.uid}>
+            {[...iaApps, ...iaApps].map((app, index) => (
+              <swiper-slide key={`${app.uid}-${index}`}>
                 <div className="swiper-material-wrapper">
                   <div className="swiper-material-content">
                     <div className="h-full w-[280px] flex flex-col bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/50 rounded-xl hover:border-emerald-500/50 transition-all duration-300 group">

@@ -5,9 +5,7 @@ import { HeroSection } from "@/components/hero/hero-section";
 import { HardwareSection } from "@/components/hardware/hardware-section";
 import { ServicesSection } from "@/components/services/services-section";
 import { AdvantagesSection } from "@/components/advantages/advantages-section";
-import { PlansSection } from "@/components/plans/plans-section";
-import { WhatsAppSection } from "@/components/whatsapp/whatsapp-section";
-import { BackendSection } from "@/components/backend/backend-section";
+import { PriceSection } from '@/components/landing/price-section';
 import { FAQSection } from "@/components/faq/faq-section";
 import { Footer } from "@/components/footer/footer";
 import { NetworkAnimation } from "@/components/ui/network-animation";
@@ -21,9 +19,7 @@ export default function Home() {
       <HardwareSection />
       <ServicesSection />
       <AdvantagesSection />
-      <BackendSection />
-      <PlansSection />
-      <WhatsAppSection />
+      <PriceSection />
       <FAQSection />
       <Footer />
     </main>

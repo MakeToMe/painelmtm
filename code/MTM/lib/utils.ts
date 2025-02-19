@@ -15,3 +15,10 @@ export function generateSlug(text: string): string {
     .replace(/-+/g, '-') // Remove hífens duplicados
     .trim();
 }
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value)
+}

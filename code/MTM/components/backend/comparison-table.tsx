@@ -10,7 +10,7 @@ const features = [
   { name: "Automação de Tarefas", xano: "Lambdas (Javascript)", makeToMe: "Edge Functions (Deno)" },
   { name: "Microserviços Docker", xano: "Apenas Enterprise", makeToMe: "Sim" },
   { name: "Realtime", xano: "Necessita SDK", makeToMe: "Nativo" },
-  { name: "Investimento", xano: "USD 225", makeToMe: "USD 100" },
+  { name: "Investimento", xano: "USD 225", makeToMe: "USD 90" },
 ];
 
 export function ComparisonTable() {

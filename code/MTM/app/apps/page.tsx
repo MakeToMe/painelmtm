@@ -20,8 +20,8 @@ export default function AppsPage() {
       const data = await getAppData();
       setApps(data);
       
-      // Extrair categorias únicas
-      const uniqueCategories = [...new Set(data.map(app => app.categoria))];
+      // Extrair categorias únicas e ordenar alfabeticamente
+      const uniqueCategories = [...new Set(data.map(app => app.categoria))].sort();
       setCategories(uniqueCategories);
     };
 

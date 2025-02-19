@@ -24,9 +24,7 @@ export function Navbar() {
     { name: "Hardware", href: "#hardware" },
     { name: "Serviços", href: "#servicos" },
     { name: "Vantagens", href: "#vantagens" },
-    { name: "Backend", href: "#backend" },
-    { name: "Planos", href: "#planos" },
-    { name: "WhatsApp", href: "#bonus" },
+    { name: "Backend", href: "/backend" },
     { name: "Dúvidas", href: "#duvidas" },
   ];
 
