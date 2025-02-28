@@ -7,6 +7,7 @@ import { HardwareGlobe } from "./hardware-globe";
 import { DataCenterLocations } from "./datacenter-locations";
 import { ServersButton } from "./servers-button";
 import { VMGrid } from "@/components/servers/vm-grid";
+import { StorageVMGrid } from "@/components/servers/storage-vm-grid";
 
 export function HardwareSection() {
   return (
@@ -73,6 +74,17 @@ export function HardwareSection() {
             className="mt-12"
           >
             <VMGrid />
+          </motion.div>
+
+          {/* Storage VM Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="mt-12"
+          >
+            <StorageVMGrid />
           </motion.div>
         </motion.div>
 

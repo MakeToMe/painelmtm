@@ -7,6 +7,7 @@ export async function getVMData(): Promise<VMData[]> {
     const { data, error } = await supabase
       .from('list_vms')
       .select('*')
+      .eq('tipo', 'compute')
       .order('usd', { ascending: true });
 
     if (error) {

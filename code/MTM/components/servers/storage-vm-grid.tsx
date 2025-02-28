@@ -4,8 +4,8 @@ import { motion, LazyMotion, domAnimation } from "framer-motion";
 import { useEffect, useState } from 'react';
 import { register } from 'swiper/element/bundle';
 import { VMData } from '@/types/vm-data';
-import { getVMData } from '@/lib/supabase/vms';
-import { Server } from 'lucide-react';
+import { getStorageVMData } from '@/lib/supabase/storage-vms';
+import { HardDrive } from 'lucide-react';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -25,43 +25,43 @@ declare namespace JSX {
 }
 
 const styles = `
-  .vms-swiper {
+  .storage-vms-swiper {
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     height: 420px;
     padding: 20px 10px;
   }
-  .vms-swiper swiper-slide {
+  .storage-vms-swiper swiper-slide {
     height: 100%;
     border-radius: var(--swiper-material-slide-border-radius);
     overflow: hidden;
     width: 300px !important;
   }
-  .vms-swiper .swiper-material-wrapper {
+  .storage-vms-swiper .swiper-material-wrapper {
     width: 100%;
     height: 100%;
   }
-  .vms-swiper .swiper-material-content {
+  .storage-vms-swiper .swiper-material-content {
     width: 100%;
     height: 100%;
   }
 `;
 
-export function VMGrid() {
+export function StorageVMGrid() {
   const [vms, setVMs] = useState<VMData[]>([]);
 
   useEffect(() => {
     register();
 
     // Buscar VMs
-    getVMData().then(data => {
-      console.log('VMs carregadas:', data);
+    getStorageVMData().then(data => {
+      console.log('Storage VMs carregadas:', data);
       setVMs(data);
     });
 
     // Configuração do Swiper
-    const swiperEl = document.querySelector('.vms-swiper');
+    const swiperEl = document.querySelector('.storage-vms-swiper');
     if (swiperEl) {
       Object.assign(swiperEl, {
         slidesPerView: 4.5,
@@ -91,7 +91,7 @@ export function VMGrid() {
 
   return (
     <LazyMotion features={domAnimation}>
-      <section className="relative py-8 overflow-hidden" id="plano-vms">
+      <section className="relative py-8 overflow-hidden" id="plano-storage">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -100,8 +100,12 @@ export function VMGrid() {
             transition={{ duration: 0.3 }}
             className="flex flex-col items-center text-center mb-8"
           >
+            <button className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 px-6 py-3 rounded-xl transition-colors duration-300 border border-emerald-500/10 mb-8">
+              <HardDrive className="w-5 h-5" />
+              <span>SERVIDORES DE ARMAZENAMENTO</span>
+            </button>
             <p className="text-zinc-400 max-w-2xl">
-              Explore nossa seleção de máquinas virtuais otimizadas para diferentes cargas de trabalho. Cada VM foi configurada para oferecer o melhor desempenho e custo-benefício.
+              Armazenamento de alto desempenho com discos NVMe em RAID. Ideal para backups, armazenamento de mídia e bancos de dados.
             </p>
           </motion.div>
 
@@ -109,7 +113,7 @@ export function VMGrid() {
             <style>{styles}</style>
             
             <swiper-container 
-              class="vms-swiper"
+              class="storage-vms-swiper"
               slides-per-view="auto"
               space-between="16"
               grab-cursor="true"
@@ -131,13 +135,13 @@ export function VMGrid() {
               }'
             >
               {vms.map((vm, index) => (
-                <swiper-slide key={vm.uid || `vm-${index}`}>
+                <swiper-slide key={vm.uid || `storage-${index}`}>
                   <div className="swiper-material-wrapper">
                     <div className="swiper-material-content">
                       <div className="h-full w-[300px] flex flex-col p-6 bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/50 rounded-xl hover:border-emerald-500/50 transition-all duration-300 group">
                         <div className="flex flex-col gap-4">
                           <div className="flex items-center gap-2">
-                            <Server className="w-5 h-5 text-emerald-500" />
+                            <HardDrive className="w-5 h-5 text-emerald-500" />
                             <h3 className="text-xl font-semibold text-white">{vm.nome}</h3>
                           </div>
 

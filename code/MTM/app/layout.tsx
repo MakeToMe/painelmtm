@@ -3,8 +3,9 @@
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from 'next-themes'
-import { AuthProvider } from '@/contexts/auth-context'
 import { Toaster } from 'sonner'
+import { AuthProvider } from '@/contexts/auth-context'
+import CookieConsent from '@/components/CookieConsent'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -15,16 +16,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${inter.className}`} suppressHydrationWarning>
+      <head>
+        <title>Make To Me</title>
+        <meta name="description" content="Painel administrativo Make To Me" />
+      </head>
+      <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
-          enableSystem={false}
+          enableSystem
           disableTransitionOnChange
         >
           <AuthProvider>
             {children}
-            <Toaster richColors position="top-right" />
+            <Toaster richColors />
+            <CookieConsent />
           </AuthProvider>
         </ThemeProvider>
       </body>

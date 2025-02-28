@@ -10,11 +10,9 @@ import { useTheme } from 'next-themes';
 // Ícones
 import { 
   RiDashboardLine, 
-  RiServerLine,
   RiGlobalLine,
   RiAppsLine, 
   RiDatabase2Line,
-  RiShieldLine,
   RiUserSettingsLine,
   RiSunLine,
   RiMoonLine,
@@ -31,87 +29,94 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: RiDashboardLine },
-  { name: 'Servidor', href: '/servidor', icon: RiServerLine },
   { name: 'Domínios', href: '/dominios', icon: RiGlobalLine },
   { name: 'Aplicativos', href: '/aplicativos', icon: RiAppsLine },
   { name: 'Backups', href: '/backups', icon: RiDatabase2Line },
-  { name: 'Segurança', href: '/seguranca', icon: RiShieldLine },
   { name: 'Meu Perfil', href: '/perfil', icon: RiUserSettingsLine },
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme()
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { theme, setTheme } = useTheme();
 
-  // Controle responsivo
+  // Adiciona detecção de largura da tela e controle de montagem
   useEffect(() => {
+    setMounted(true)
+    
     const handleResize = () => {
-      if (window.innerWidth < 800) {
-        setCollapsed(true);
+      if (window.innerWidth < 1024) {
+        setCollapsed(true)
+      } else {
+        setCollapsed(false)
       }
-    };
+    }
 
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Checa o tamanho inicial
-    setMounted(true);
+    // Configura o estado inicial
+    handleResize()
 
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    // Adiciona listener para mudanças de tamanho
+    window.addEventListener('resize', handleResize)
 
-  // Não renderiza nada até o componente estar montado
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Renderiza um placeholder durante a hidratação
   if (!mounted) {
-    return null;
+    return (
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card z-50" />
+    )
   }
 
   return (
-    <div className="relative">
+    <>
       {/* Botão de Toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
         className={`
-          fixed z-50 p-1 rounded-full bg-gray-800 dark:bg-zinc-950 text-gray-400 
-          hover:text-white transition-all duration-300 border border-gray-700 dark:border-zinc-800
+          fixed z-[60] p-1.5 rounded-full bg-card text-muted-foreground
+          hover:text-card-foreground transition-all duration-300 border border-border
           ${collapsed 
             ? 'left-16' 
             : 'left-64'
           }
-          top-16
-          -translate-x-1/2 -translate-y-1/2
+          top-6
+          lg:hidden
         `}
         aria-label={collapsed ? 'Expandir menu' : 'Retrair menu'}
       >
         {collapsed ? (
-          <RiArrowRightSLine className="w-3.5 h-3.5" />
+          <RiArrowRightSLine className="w-4 h-4" />
         ) : (
-          <RiArrowLeftSLine className="w-3.5 h-3.5" />
+          <RiArrowLeftSLine className="w-4 h-4" />
         )}
       </button>
 
       <aside 
         className={`
-          fixed left-0 top-0 h-full bg-gray-800 dark:bg-zinc-950 text-white transition-all duration-300
+          fixed left-0 top-0 h-full bg-card text-card-foreground 
+          transition-all duration-300 z-50
           ${collapsed ? 'w-16' : 'w-64'}
-          flex flex-col justify-between
+          flex flex-col justify-between border-r border-border/30
         `}
       >
         {/* Perfil */}
         <div className="flex flex-col items-center">
-          <div className="w-full flex flex-col items-center p-4 border-b border-gray-700/30 dark:border-zinc-800/30">
-            <div className="w-12 h-12 mb-2">
+          <div className="w-full flex flex-col items-center p-4 border-b border-border/30">
+            <div className="relative w-12 h-12 mb-2">
               <Image
                 src={profile?.perfil || 'https://studio.rardevops.com/storage/v1/object/public/mtm/user_mtm.png'}
                 alt="Avatar"
-                width={40}
-                height={40}
-                className="rounded-full"
+                fill
+                className="rounded-full object-cover"
                 priority
               />
             </div>
             {!collapsed && profile?.nome && (
-              <span className="text-sm text-gray-300 truncate max-w-[180px]">
+              <span className="text-sm text-muted-foreground truncate max-w-[180px]">
                 {profile.nome.split(' ').filter((_, i, arr) => i === 0 || i === arr.length - 1).join(' ')}
               </span>
             )}
@@ -132,14 +137,14 @@ export function Sidebar() {
                     className={`
                       flex items-center p-2 rounded-lg transition-colors
                       ${isActive 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'text-gray-400 hover:bg-gray-700 dark:hover:bg-zinc-800 hover:text-white'
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'text-muted-foreground hover:bg-muted hover:text-card-foreground'
                       }
                     `}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-5 h-5 flex-shrink-0" />
                     {!collapsed && (
-                      <span className="ml-3">{item.name}</span>
+                      <span className="ml-3 truncate">{item.name}</span>
                     )}
                   </Link>
                 </li>
@@ -149,20 +154,20 @@ export function Sidebar() {
         </nav>
 
         {/* Footer com Theme Toggle e Logout */}
-        <div className="p-4 border-t border-gray-700 dark:border-zinc-900">
+        <div className="p-4 border-t border-border/30">
           <ul className="space-y-2">
             <li>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="w-full flex items-center p-2 text-gray-400 hover:bg-gray-700 dark:hover:bg-zinc-800 hover:text-white rounded-lg transition-colors"
+                className="w-full flex items-center p-2 text-muted-foreground hover:bg-muted hover:text-card-foreground rounded-lg transition-colors"
               >
                 {theme === 'dark' ? (
-                  <RiSunLine className="w-5 h-5" />
+                  <RiSunLine className="w-5 h-5 flex-shrink-0" />
                 ) : (
-                  <RiMoonLine className="w-5 h-5" />
+                  <RiMoonLine className="w-5 h-5 flex-shrink-0" />
                 )}
                 {!collapsed && (
-                  <span className="ml-3">
+                  <span className="ml-3 truncate">
                     {theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
                   </span>
                 )}
@@ -171,15 +176,15 @@ export function Sidebar() {
             <li>
               <button
                 onClick={signOut}
-                className="w-full flex items-center p-2 text-gray-400 hover:bg-gray-700 dark:hover:bg-zinc-800 hover:text-white rounded-lg transition-colors"
+                className="w-full flex items-center p-2 text-muted-foreground hover:bg-muted hover:text-card-foreground rounded-lg transition-colors"
               >
-                <RiLogoutBoxLine className="w-5 h-5" />
-                {!collapsed && <span className="ml-3">Sair</span>}
+                <RiLogoutBoxLine className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="ml-3 truncate">Sair</span>}
               </button>
             </li>
           </ul>
         </div>
       </aside>
-    </div>
+    </>
   );
 }

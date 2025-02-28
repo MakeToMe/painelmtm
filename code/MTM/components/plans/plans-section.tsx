@@ -63,12 +63,9 @@ export function ModulesSection() {
     const loadApps = async () => {
       try {
         const data = await getAppData();
-        setApps(data.apps || []);
-        setIaApps(data.iaApps || []);
-        
-        // Logs temporários para debug
-        console.log('Quantidade de apps Basic:', data.apps?.length || 0);
-        console.log('Quantidade de apps IA:', data.iaApps?.length || 0);
+        console.log('Dados recebidos:', data);
+        setApps(data.apps);
+        setIaApps(data.iaApps);
       } catch (error) {
         console.error('Erro ao carregar apps:', error);
       } finally {
@@ -101,6 +98,7 @@ export function ModulesSection() {
 
   return (
     <LazyMotion features={domAnimation}>
+      <style>{styles}</style>
       <section id="modulos" className="py-20 overflow-hidden">
         <div className="w-full max-w-[1200px] mx-auto px-4 mb-16">
           <motion.div
@@ -119,8 +117,6 @@ export function ModulesSection() {
           </motion.div>
         </div>
 
-        <style>{styles}</style>
-
         <div className="apps-container">
           <h3 className="text-2xl font-bold text-white mb-8 text-center">
             Módulos Base
@@ -128,11 +124,11 @@ export function ModulesSection() {
           <swiper-container
             class="apps-swiper"
             slides-per-view="auto"
-            space-between="24"
             centered-slides="true"
-            loop="true"
+            space-between="24"
+            navigation="true"
             initial-slide="0"
-            onswiper={handleSwiperLoad}
+            onLoad={handleSwiperLoad}
           >
             {apps.map((app) => (
               <swiper-slide key={app.uid}>
@@ -158,7 +154,7 @@ export function ModulesSection() {
 
                           <div className="flex justify-center mb-6">
                             <span className="px-4 py-2 bg-zinc-800/50 text-emerald-400 text-sm font-medium rounded-full">
-                              {app.categoria}
+                              BASIC
                             </span>
                           </div>
                         </div>
@@ -166,7 +162,7 @@ export function ModulesSection() {
                         <div className="mt-auto pt-2">
                           <div className="flex justify-center">
                             <Link 
-                              href={`/apps/${app.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                              href={`/apps/${app.slug}`}
                               className="w-full"
                             >
                               <button className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors duration-200">
@@ -190,13 +186,14 @@ export function ModulesSection() {
           <swiper-container
             class="ia-apps-swiper"
             slides-per-view="auto"
-            space-between="24"
             centered-slides="true"
-            loop="true"
+            space-between="24"
+            navigation="true"
             initial-slide="0"
+            onLoad={handleSwiperLoad}
           >
-            {[...iaApps, ...iaApps].map((app, index) => (
-              <swiper-slide key={`${app.uid}-${index}`}>
+            {iaApps.map((app) => (
+              <swiper-slide key={app.uid}>
                 <div className="swiper-material-wrapper">
                   <div className="swiper-material-content">
                     <div className="h-full w-[280px] flex flex-col bg-zinc-800/30 backdrop-blur-sm border border-zinc-700/50 rounded-xl hover:border-emerald-500/50 transition-all duration-300 group">
@@ -219,7 +216,7 @@ export function ModulesSection() {
 
                           <div className="flex justify-center mb-6">
                             <span className="px-4 py-2 bg-zinc-800/50 text-emerald-400 text-sm font-medium rounded-full">
-                              {app.categoria}
+                              IA
                             </span>
                           </div>
                         </div>
@@ -227,7 +224,7 @@ export function ModulesSection() {
                         <div className="mt-auto pt-2">
                           <div className="flex justify-center">
                             <Link 
-                              href={`/apps/${app.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                              href={`/apps/${app.slug}`}
                               className="w-full"
                             >
                               <button className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors duration-200">

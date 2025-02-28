@@ -11,9 +11,9 @@ interface PlanosSectionProps {
 export function PlanosSection({ planos }: PlanosSectionProps) {
   const formatCurrency = (value: number | null) => {
     if (value === null) return 'Sob consulta';
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'USD'
     }).format(value);
   };
 

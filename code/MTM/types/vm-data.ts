@@ -9,6 +9,7 @@ export interface VMData {
   banda?: string;
   core?: string;
   usd: number;
+  tipo: string;
 }
 
 // Função para converter string de preço em número

@@ -4,7 +4,11 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is required')
 }
 
-const supabaseUrl = 'https://studio.rardevops.com'
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  throw new Error('NEXT_PUBLIC_SUPABASE_URL is required')
+}
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Configuração do cliente Supabase com opções adicionais
@@ -13,7 +17,7 @@ export const supabase = createClient(
   supabaseAnonKey,
   {
     db: {
-      schema: 'mtm'  // Schema correto é mtm
+      schema: 'mtm'  // IMPORTANTE: Schema deve ser SEMPRE 'mtm'
     },
     auth: {
       autoRefreshToken: true,

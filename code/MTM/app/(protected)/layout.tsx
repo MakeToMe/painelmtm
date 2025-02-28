@@ -10,12 +10,12 @@ export default function ProtectedLayout({
 }) {
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950">
+      <div className="min-h-screen bg-background">
         <Sidebar />
         
         {/* Conteúdo principal */}
-        <main className="pl-16 lg:pl-64 min-h-screen bg-gray-100 dark:bg-zinc-800">
-          <div className="container mx-auto p-6">
+        <main className="relative transition-all duration-300 min-h-screen bg-background pl-16 lg:pl-64">
+          <div className="max-w-[1400px] mx-auto px-4 py-6 lg:px-6">
             {children}
           </div>
         </main>
