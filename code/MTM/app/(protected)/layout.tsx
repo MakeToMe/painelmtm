@@ -2,6 +2,7 @@
 
 import { Sidebar } from '@/components/navigation/sidebar'
 import { ThemeProvider } from '@/contexts/theme-context'
+import { PageTransition } from '@/components/transitions/page-transition'
 
 export default function ProtectedLayout({
   children,
@@ -16,7 +17,9 @@ export default function ProtectedLayout({
         {/* Conteúdo principal */}
         <main className="relative transition-all duration-300 min-h-screen bg-background pl-16 lg:pl-64">
           <div className="max-w-[1400px] mx-auto px-4 py-6 lg:px-6">
-            {children}
+            <PageTransition>
+              {children}
+            </PageTransition>
           </div>
         </main>
       </div>

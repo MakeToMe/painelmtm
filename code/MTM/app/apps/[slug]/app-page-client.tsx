@@ -10,6 +10,8 @@ import Link from 'next/link';
 import { AtomicOrbital } from '@/components/ui/atomic-orbital';
 import Image from 'next/image';
 import { FAQSection } from '@/components/apps/faq-section';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface AppPageClientProps {
   app: AppData;
@@ -18,6 +20,7 @@ interface AppPageClientProps {
 export function AppPageClient({ app }: AppPageClientProps) {
   const [description, setDescription] = useState<AppDescription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (!app?.uid) {
@@ -26,7 +29,13 @@ export function AppPageClient({ app }: AppPageClientProps) {
       return;
     }
 
-    async function loadDescription() {
+    async function loadDescription(showLoading = true) {
+      if (showLoading) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+      
       try {
         console.log('Loading description for app:', app);
         const desc = await getAppDescription(app.uid);
@@ -42,48 +51,20 @@ export function AppPageClient({ app }: AppPageClientProps) {
       } catch (error) {
         console.error('Error loading description:', error);
       } finally {
-        setIsLoading(false);
+        if (showLoading) {
+          setIsLoading(false);
+        } else {
+          setIsRefreshing(false);
+        }
       }
     }
 
     loadDescription();
-
-    const channel = supabase
-      .channel(`list_apps_changes_${app.uid}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'mtm',
-          table: 'list_apps',
-          filter: `uid=eq.${app.uid}`
-        },
-        (payload) => {
-          console.log('Realtime update received:', payload);
-          const newData = payload.new as AppDescription;
-          if (!newData) {
-            console.log('No new data in payload');
-            return;
-          }
-          
-          setDescription(prev => {
-            const shouldUpdate = JSON.stringify(prev) !== JSON.stringify(newData);
-            if (shouldUpdate) {
-              console.log('Updating description with new data');
-              return newData;
-            }
-            console.log('Data unchanged, skipping update');
-            return prev;
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('Unsubscribing from channel');
-      channel.unsubscribe();
-    };
   }, [app]);
+
+  const handleRefresh = () => {
+    loadDescription(false);
+  };
 
   if (isLoading) {
     return (
@@ -174,6 +155,20 @@ export function AppPageClient({ app }: AppPageClientProps) {
                     FAQ
                   </button>
                 )}
+                <Button
+                  onClick={handleRefresh}
+                  variant="outline"
+                  size="icon"
+                  disabled={isRefreshing}
+                  className="bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner btn-neomorphic"
+                  title="Atualizar dados"
+                >
+                  {isRefreshing ? (
+                    <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+                  ) : (
+                    <RefreshCw className="h-5 w-5 text-primary" />
+                  )}
+                </Button>
               </div>
             </div>
 

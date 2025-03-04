@@ -28,42 +28,46 @@
     
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
+    
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 142.1 76.2% 36.3%;
     
     --radius: 0.5rem;
+    --button-dark: 220 25% 12%;
   }
  
   .dark {
-    --background: 167 85% 5%;
+    --background: 220 25% 23%;
     --foreground: 210 40% 98%;
  
-    --card: 173 87% 3%;
+    --card: 220 28% 11%;
     --card-foreground: 210 40% 98%;
  
-    --popover: 173 87% 3%;
+    --popover: 220 28% 11%;
     --popover-foreground: 210 40% 98%;
  
     --primary: 142.1 70.6% 45.3%;
     --primary-foreground: 144.9 80.4% 10%;
  
-    --secondary: 173 87% 3%;
+    --secondary: 220 28% 11%;
     --secondary-foreground: 210 40% 98%;
  
-    --muted: 173 87% 8%;
+    --muted: 223 25% 15%;
     --muted-foreground: 215 20.2% 65.1%;
  
-    --accent: 173 87% 3%;
+    --accent: 220 28% 11%;
     --accent-foreground: 210 40% 98%;
  
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
  
-    --border: 173 87% 8%;
-    --input: 173 87% 8%;
+    --border: 223 25% 15%;
+    --input: 223 25% 15%;
     --ring: 142.4 71.8% 29.2%;
+    
+    --button-dark: 220 25% 12%;
+    --selected: 222 20% 21%;
   }
 }
 
@@ -73,6 +77,16 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  .dark body {
+    background: 
+      radial-gradient(ellipse at 50% 0%, rgba(34, 42, 60, 0.8) 0%, rgba(34, 42, 60, 0) 70%),
+      radial-gradient(ellipse at 50% 100%, rgba(31, 37, 53, 0.8) 0%, rgba(31, 37, 53, 0) 70%),
+      linear-gradient(to bottom, #222A3C 0%, #202737 50%, #1F2535 100%);
+    background-attachment: fixed;
+    background-size: 100% 100%;
+    min-height: 100vh;
   }
 }
 
@@ -116,4 +130,223 @@
 
 .animate-shimmer {
   animation: shimmer 3s linear infinite;
+}
+
+/* Efeito Neumórfico */
+.card-neomorphic {
+  border-radius: 12px;
+  background: hsl(var(--card));
+  box-shadow: 
+    5px 5px 10px rgba(0, 0, 0, 0.4),
+    -5px -5px 10px rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.card-neomorphic:hover {
+  box-shadow: 
+    6px 6px 12px rgba(0, 0, 0, 0.45),
+    -6px -6px 12px rgba(255, 255, 255, 0.04);
+}
+
+.btn-neomorphic {
+  border-radius: 8px;
+  box-shadow: 
+    3px 3px 6px rgba(0, 0, 0, 0.4),
+    -3px -3px 6px rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.btn-neomorphic:hover {
+  box-shadow: 
+    4px 4px 8px rgba(0, 0, 0, 0.45),
+    -4px -4px 8px rgba(255, 255, 255, 0.04);
+}
+
+.btn-neomorphic:active {
+  box-shadow: 
+    inset 2px 2px 4px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+}
+
+.input-neomorphic {
+  background: hsl(var(--card));
+  border-radius: 8px;
+  box-shadow: 
+    inset 2px 2px 4px rgba(0, 0, 0, 0.3),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.input-neomorphic:hover {
+  box-shadow: 
+    inset 3px 3px 5px rgba(0, 0, 0, 0.35),
+    inset -3px -3px 5px rgba(255, 255, 255, 0.04);
+}
+
+.input-neomorphic:focus {
+  box-shadow: 
+    inset 3px 3px 5px rgba(0, 0, 0, 0.35),
+    inset -3px -3px 5px rgba(255, 255, 255, 0.04);
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.input-neomorphic:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Modal overlay styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+/* Switch styles */
+.switch-container {
+  display: flex;
+  background: hsl(var(--card));
+  border-radius: 8px;
+  padding: 3px;
+  box-shadow: 
+    inset 2px 2px 4px rgba(0, 0, 0, 0.3),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+}
+
+.switch-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.switch-button[data-active="true"] {
+  box-shadow: 
+    inset 2px 2px 4px rgba(0, 0, 0, 0.3),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+}
+
+.switch-button[data-active="true"] svg {
+  color: hsl(var(--primary));
+}
+
+.switch-button[data-active="false"] svg {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.switch-button[data-active="false"]:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Table styles */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+table th, table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+table tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Estilos para os itens do menu lateral */
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2 rounded-lg transition-all;
+}
+
+.sidebar-item[data-active="true"] {
+  @apply text-white;
+  background-color: hsl(var(--button-dark));
+  box-shadow: 
+    -2px -2px 5px rgba(255, 255, 255, 0.05),
+    2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-item[data-active="true"]:hover {
+  box-shadow: 
+    -2px -2px 5px rgba(255, 255, 255, 0.05),
+    2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-item[data-active="false"] {
+  @apply text-gray-700 dark:text-gray-200;
+}
+
+.sidebar-item[data-active="false"]:hover {
+  @apply bg-gray-100 dark:bg-zinc-700;
+}
+
+/* Animações para transições de página */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.page-enter {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.page-exit {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+/* Melhorar a performance de animações */
+.animate-gpu {
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Estilo para o overlay do modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 999;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: all;
+}
+
+/* Card footer divider */
+.card-footer-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+  padding-top: 1rem;
 }

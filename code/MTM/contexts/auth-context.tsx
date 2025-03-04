@@ -9,7 +9,7 @@ import { hashPassword, generateToken } from '@/lib/hash'
 
 interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, userData: Partial<MtmUser>) => Promise<void>
-  signIn: (identifier: string, password: string, loginMethod: 'email' | 'whatsapp') => Promise<void>
+  signIn: (identifier: string, password: string, loginMethod: 'email' | 'whatsapp') => Promise<MtmUser>
   signOut: () => Promise<void>
 }
 
@@ -70,41 +70,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Se não tiver usuário logado, não precisa escutar mudanças
+    // Se não tiver usuário logado, não precisa buscar o perfil
     if (!state.user?.email) return
 
-    // Inscrever para mudanças na tabela mtm_users
-    const subscription = supabase
-      .channel('mtm_users_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Escuta todos os eventos (INSERT, UPDATE, DELETE)
-          schema: 'mtm',
-          table: 'mtm_users',
-          filter: `email=eq.${state.user.email}` // Apenas mudanças no usuário atual
-        },
-        async (payload) => {
-          console.log('Mudança detectada em mtm_users:', payload)
-          
-          // Atualizar o estado com os novos dados
-          if (payload.eventType === 'UPDATE') {
-            const { new: newProfile } = payload
-            setState(prev => ({
-              ...prev,
-              profile: newProfile,
-              user: newProfile
-            }))
-          }
+    // Função para buscar o perfil do usuário
+    const fetchUserProfile = async () => {
+      try {
+        // Buscar o perfil do usuário usando a API
+        const response = await fetch(`/api/auth/profile?email=${encodeURIComponent(state.user!.email)}`)
+        
+        if (!response.ok) {
+          console.error('Erro ao buscar perfil do usuário')
+          return
         }
-      )
-      .subscribe()
-
-    // Cleanup: remover subscription quando o componente for desmontado
-    return () => {
-      subscription.unsubscribe()
+        
+        const profileData = await response.json()
+        
+        // Atualizar o estado com os novos dados
+        setState(prev => ({
+          ...prev,
+          profile: profileData,
+          user: profileData
+        }))
+      } catch (error) {
+        console.error('Erro ao buscar perfil do usuário:', error)
+      }
     }
-  }, [state.user?.email]) // Re-executar quando o email mudar
+
+    // Buscar o perfil inicialmente
+    fetchUserProfile()
+    
+    // Não usamos mais polling automático, apenas a busca inicial
+  }, [state.user?.email])
 
   async function fetchProfile() {
     const user = state.user
@@ -211,8 +208,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Erro ao fazer login');
       }
 
-      // Salvar dados localmente
-      Cookies.set('mtm_token', token);
+      // Salvar dados localmente com opções explícitas para garantir que o cookie seja acessível
+      Cookies.set('mtm_token', token, { 
+        expires: 7,  // 7 dias
+        path: '/',
+        secure: true,
+        sameSite: 'lax'
+      });
       localStorage.setItem('mtm_user', JSON.stringify(user));
 
       // Atualizar estado
@@ -223,7 +225,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading: false
       }));
 
+      // Forçar refresh para garantir que o middleware reconheça o novo token
       router.refresh();
+      
+      // Adicionar um pequeno atraso antes de navegar para o dashboard
+      // para garantir que o refresh seja concluído
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 100);
+      
+      return user;
     } catch (error: any) {
       console.error('Erro no signIn:', error);
       throw error;

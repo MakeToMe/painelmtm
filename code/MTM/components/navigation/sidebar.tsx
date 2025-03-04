@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from 'next-themes';
+import { Link2 } from 'lucide-react';
 
 // Ícones
 import { 
@@ -29,6 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: RiDashboardLine },
+  { name: 'Integrações', href: '/integracoes', icon: Link2 },
   { name: 'Domínios', href: '/dominios', icon: RiGlobalLine },
   { name: 'Aplicativos', href: '/aplicativos', icon: RiAppsLine },
   { name: 'Backups', href: '/backups', icon: RiDatabase2Line },
@@ -134,13 +136,8 @@ export function Sidebar() {
                 <li key={item.name}>
                   <Link
                     href={item.href}
-                    className={`
-                      flex items-center p-2 rounded-lg transition-colors
-                      ${isActive 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'text-muted-foreground hover:bg-muted hover:text-card-foreground'
-                      }
-                    `}
+                    className={`sidebar-item`}
+                    data-active={isActive}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
                     {!collapsed && (
@@ -156,10 +153,25 @@ export function Sidebar() {
         {/* Footer com Theme Toggle e Logout */}
         <div className="p-4 border-t border-border/30">
           <ul className="space-y-2">
+            {/* Botão Contratar servidor */}
+            <li>
+              <Link
+                href="/contratar-servidor"
+                className="sidebar-item w-full bg-emerald-500/10 hover:bg-emerald-500/15 btn-neomorphic"
+                data-active={pathname === '/contratar-servidor'}
+              >
+                <RiArrowRightSLine className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+                {!collapsed && (
+                  <span className="ml-3 truncate">Contratar servidor</span>
+                )}
+              </Link>
+            </li>
+            
             <li>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="w-full flex items-center p-2 text-muted-foreground hover:bg-muted hover:text-card-foreground rounded-lg transition-colors"
+                className="sidebar-item w-full"
+                data-active={false}
               >
                 {theme === 'dark' ? (
                   <RiSunLine className="w-5 h-5 flex-shrink-0" />
@@ -176,7 +188,8 @@ export function Sidebar() {
             <li>
               <button
                 onClick={signOut}
-                className="w-full flex items-center p-2 text-muted-foreground hover:bg-muted hover:text-card-foreground rounded-lg transition-colors"
+                className="sidebar-item w-full"
+                data-active={false}
               >
                 <RiLogoutBoxLine className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="ml-3 truncate">Sair</span>}

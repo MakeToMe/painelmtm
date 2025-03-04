@@ -26,6 +26,15 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
       ),
     },
     {
+      name: 'Integrações',
+      href: '/integracoes',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      ),
+    },
+    {
       name: 'Perfil',
       href: '/perfil',
       icon: (
@@ -77,11 +86,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-700'
-                }`}
+                className="sidebar-item"
+                data-active={isActive ? 'true' : 'false'}
               >
                 {item.icon}
                 <span className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300">
@@ -95,10 +101,25 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
         {/* Rodapé com tema e logout */}
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <div className="space-y-3">
+            {/* Botão Contratar servidor */}
+            <Link
+              href="/contratar-servidor"
+              className="sidebar-item w-full bg-emerald-500/20 hover:bg-emerald-500/30 flex items-center"
+              data-active={pathname === '/contratar-servidor' ? 'true' : 'false'}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+              <span className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300">
+                Contratar servidor
+              </span>
+            </Link>
+
             {/* Alternador de tema */}
             <button
               onClick={toggleTheme}
-              className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              className="sidebar-item w-full"
+              data-active="false"
             >
               {theme === 'dark' ? (
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -117,7 +138,8 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             {/* Botão de logout */}
             <button
               onClick={signOut}
-              className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              className="sidebar-item w-full"
+              data-active="false"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

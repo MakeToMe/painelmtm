@@ -4,12 +4,12 @@ export interface MtmUser {
   uid: string
   created_at: string
   nome: string | null
-  perfil: string
-  cpf: string | null
+  perfil: string | null
+  documento: string | null
   whatsapp: string | null
-  whatsapp_valid: boolean
-  email: string | null
-  email_valid: boolean
+  whatsapp_valid: boolean | null
+  email: string
+  email_valid: boolean | null
   cep: string | null
   rua: string | null
   numero: string | null
@@ -18,6 +18,10 @@ export interface MtmUser {
   cidade: string | null
   uf: string | null
   token: string | null
+  password: string | null
+  email_token: string | null
+  whatsapp_token: string | null
+  admin: boolean | null
 }
 
 export interface AuthState {
