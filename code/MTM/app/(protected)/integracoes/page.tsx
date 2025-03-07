@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '@/contexts/auth-context'
+import { useProfileRefresh } from '@/hooks/use-profile-refresh'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { RiLoader4Line, RiAddLine, RiDeleteBinLine, RiEdit2Line, RiTableLine, RiLayoutGridLine, RiRefreshLine } from 'react-icons/ri'
+import { RiLoader4Line, RiAddLine, RiDeleteBinLine, RiEdit2Line, RiTableLine, RiLayoutGridLine, RiRefreshLine, RiLinkM, RiPlugLine } from 'react-icons/ri'
 import { AlertTriangle, Link2, PlusCircle, X, Eye, Edit2, Trash2, RefreshCw } from "lucide-react"
 
 interface Integracao {
@@ -22,12 +23,14 @@ interface Integracao {
 
 export default function IntegracoesPage() {
   const { profile } = useAuth()
+  // Usar o hook para atualizar o perfil ao montar o componente
+  const { refreshProfile } = useProfileRefresh()
   const [integracoes, setIntegracoes] = useState<Integracao[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table')
   const [showModal, setShowModal] = useState(false)
+  const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [selectedIntegracao, setSelectedIntegracao] = useState<string | null>(null)
@@ -49,8 +52,6 @@ export default function IntegracoesPage() {
   const fetchIntegracoes = async (showLoading = true) => {
     if (showLoading) {
       setIsLoading(true)
-    } else {
-      setIsRefreshing(true)
     }
     
     try {
@@ -73,25 +74,28 @@ export default function IntegracoesPage() {
     } finally {
       if (showLoading) {
         setIsLoading(false)
-      } else {
-        setIsRefreshing(false)
       }
     }
   }
   
-  const handleRefresh = () => {
-    fetchIntegracoes(false)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
     try {
-      if (!novaIntegracao.nome || !novaIntegracao.chave || !novaIntegracao.secret) {
-        toast.error('Preencha todos os campos obrigatórios')
-        setIsSubmitting(false)
-        return
+      // Validação diferente para Cloudflare e integração genérica
+      if (novaIntegracao.nome === 'Cloudflare') {
+        if (!novaIntegracao.chave) {
+          toast.error('Preencha o Token API do Cloudflare')
+          setIsSubmitting(false)
+          return
+        }
+      } else {
+        if (!novaIntegracao.nome || !novaIntegracao.chave) {
+          toast.error('Preencha os campos obrigatórios (Nome e Chave)')
+          setIsSubmitting(false)
+          return
+        }
       }
 
       let response
@@ -102,9 +106,9 @@ export default function IntegracoesPage() {
           titular: profile?.uid,
           nome: novaIntegracao.nome,
           chave: novaIntegracao.chave,
-          secret: novaIntegracao.secret,
-          url: novaIntegracao.url,
-          origem: novaIntegracao.origem || 'cloudflare'
+          secret: novaIntegracao.nome === 'Cloudflare' ? null : novaIntegracao.secret,
+          url: novaIntegracao.nome === 'Cloudflare' ? 'https://api.cloudflare.com' : novaIntegracao.url,
+          origem: novaIntegracao.nome === 'Cloudflare' ? 'https://cloudflare.com/pt-br' : (novaIntegracao.origem || 'desconhecida')
         };
         
         console.log('Enviando dados para atualização:', updateData);
@@ -126,9 +130,9 @@ export default function IntegracoesPage() {
             titular: profile?.uid,
             nome: novaIntegracao.nome,
             chave: novaIntegracao.chave,
-            secret: novaIntegracao.secret,
-            url: novaIntegracao.url,
-            origem: novaIntegracao.origem || 'cloudflare'
+            secret: novaIntegracao.nome === 'Cloudflare' ? null : novaIntegracao.secret,
+            url: novaIntegracao.nome === 'Cloudflare' ? 'https://api.cloudflare.com' : novaIntegracao.url,
+            origem: novaIntegracao.nome === 'Cloudflare' ? 'https://cloudflare.com/pt-br' : (novaIntegracao.origem || 'desconhecida')
           })
         })
       }
@@ -136,6 +140,30 @@ export default function IntegracoesPage() {
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Erro ao salvar integração')
+      }
+
+      // Se for uma integração Cloudflare, enviar webhook
+      if (novaIntegracao.nome === 'Cloudflare') {
+        try {
+          // Enviar webhook sem esperar resposta
+          fetch('https://rarwhk.rardevops.com/webhook/cloudflare_counts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              api_nome: 'Cloudflare',
+              token: novaIntegracao.chave,
+              userUid: profile?.uid
+            })
+          }).catch(webhookError => {
+            console.error('Erro ao enviar webhook (não crítico):', webhookError);
+            // Não exibir erro para o usuário, pois o salvamento principal já foi bem-sucedido
+          });
+        } catch (webhookError) {
+          console.error('Erro ao enviar webhook (não crítico):', webhookError);
+          // Não exibir erro para o usuário, pois o salvamento principal já foi bem-sucedido
+        }
       }
 
       await fetchIntegracoes(false)
@@ -233,20 +261,55 @@ export default function IntegracoesPage() {
     }
   }
 
+  const hasCloudflareIntegration = () => {
+    return integracoes.some(integracao => integracao.nome === 'Cloudflare');
+  }
+
+  const openNewIntegrationModal = () => {
+    resetForm();
+    
+    if (hasCloudflareIntegration()) {
+      setShowModal(true);
+    } else {
+      setShowTypeSelectionModal(true);
+    }
+  }
+
+  const setupCloudflareIntegration = () => {
+    setNovaIntegracao({
+      nome: 'Cloudflare',
+      chave: '',
+      secret: '',
+      url: 'https://api.cloudflare.com',
+      origem: 'https://cloudflare.com/pt-br'
+    });
+    setShowTypeSelectionModal(false);
+    setShowModal(true);
+  }
+
+  const setupGenericIntegration = () => {
+    resetForm();
+    setShowTypeSelectionModal(false);
+    setShowModal(true);
+  }
+
   return (
     <div className="p-4 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <h1 className="text-2xl font-bold text-white">Integrações</h1>
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-card rounded-lg py-4 px-5 card-neomorphic">
+        <div className="flex items-center gap-2">
+          <RiPlugLine className="text-primary" size={24} />
+          <h1 className="text-2xl font-bold text-white">Integrações</h1>
+        </div>
       </div>
 
       {/* Toggle de visualização */}
-      <div className="flex items-center justify-between mb-4 bg-card rounded-lg py-3 px-4 card-neomorphic">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 bg-card rounded-lg py-3 px-4 card-neomorphic gap-3">
+        <div className="flex items-center">
           <div className="switch-container">
             <Button
               data-active={viewMode === 'table'}
               onClick={() => setViewMode('table')}
-              className="switch-button p-2 rounded-l-md transition-all"
+              className="switch-button p-1.5 rounded-l-md transition-all"
               variant="ghost"
             >
               <RiTableLine className="w-5 h-5" />
@@ -254,35 +317,17 @@ export default function IntegracoesPage() {
             <Button
               data-active={viewMode === 'card'}
               onClick={() => setViewMode('card')}
-              className="switch-button p-2 rounded-r-md transition-all"
+              className="switch-button p-1.5 rounded-r-md transition-all"
               variant="ghost"
             >
               <RiLayoutGridLine className="w-5 h-5" />
             </Button>
           </div>
-          
-          <Button
-            onClick={handleRefresh}
-            variant="outline"
-            size="icon"
-            disabled={isRefreshing}
-            className="bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner btn-neomorphic"
-            title="Atualizar dados"
-          >
-            {isRefreshing ? (
-              <RiLoader4Line className="h-5 w-5 animate-spin text-primary" />
-            ) : (
-              <RefreshCw className="h-5 w-5 text-primary" />
-            )}
-          </Button>
         </div>
         
         <Button 
-          onClick={() => {
-            resetForm()
-            setShowModal(true)
-          }}
-          className="bg-button-dark text-white hover:bg-button-dark/90 active:bg-button-dark/80 transition-all duration-200 btn-neomorphic"
+          onClick={openNewIntegrationModal}
+          className="w-full sm:w-auto bg-button-dark text-white hover:bg-button-dark/90 active:bg-button-dark/80 transition-all duration-200 btn-neomorphic"
         >
           <PlusCircle className="mr-2 h-4 w-4" />
           Nova Integração
@@ -462,54 +507,60 @@ export default function IntegracoesPage() {
                       className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
                       placeholder="Nome da integração"
                       autoComplete="off"
-                      disabled={!isEditing && selectedIntegracao !== null}
+                      disabled={(!isEditing && selectedIntegracao !== null) || novaIntegracao.nome === 'Cloudflare'}
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground">Chave</label>
+                    <label className="text-sm text-muted-foreground">{novaIntegracao.nome === 'Cloudflare' ? 'Token API' : 'Chave'}</label>
                     <Input
                       value={novaIntegracao.chave}
                       onChange={(e) => setNovaIntegracao(prev => ({ ...prev, chave: e.target.value }))}
                       className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                      placeholder="Chave de API"
+                      placeholder={novaIntegracao.nome === 'Cloudflare' ? 'Token API do Cloudflare' : 'Chave de API'}
                       autoComplete="off"
                       disabled={!isEditing && selectedIntegracao !== null}
                     />
                   </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground">Secret</label>
-                    <Input
-                      type="password"
-                      value={novaIntegracao.secret}
-                      onChange={(e) => setNovaIntegracao(prev => ({ ...prev, secret: e.target.value }))}
-                      className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                      placeholder="Secret (opcional)"
-                      autoComplete="new-password"
-                      disabled={!isEditing && selectedIntegracao !== null}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground">URL</label>
-                    <Input
-                      value={novaIntegracao.url}
-                      onChange={(e) => setNovaIntegracao(prev => ({ ...prev, url: e.target.value }))}
-                      className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                      placeholder="URL da API (opcional)"
-                      autoComplete="off"
-                      disabled={!isEditing && selectedIntegracao !== null}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground">Origem</label>
-                    <Input
-                      value={novaIntegracao.origem}
-                      onChange={(e) => setNovaIntegracao(prev => ({ ...prev, origem: e.target.value }))}
-                      className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                      placeholder="Origem da integração"
-                      autoComplete="off"
-                      disabled={!isEditing && selectedIntegracao !== null}
-                    />
-                  </div>
+                  {novaIntegracao.nome !== 'Cloudflare' && (
+                    <div>
+                      <label className="text-sm text-muted-foreground">Secret</label>
+                      <Input
+                        type="password"
+                        value={novaIntegracao.secret}
+                        onChange={(e) => setNovaIntegracao(prev => ({ ...prev, secret: e.target.value }))}
+                        className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                        placeholder="Secret (opcional)"
+                        autoComplete="new-password"
+                        disabled={!isEditing && selectedIntegracao !== null}
+                      />
+                    </div>
+                  )}
+                  {novaIntegracao.nome !== 'Cloudflare' && (
+                    <div>
+                      <label className="text-sm text-muted-foreground">URL</label>
+                      <Input
+                        value={novaIntegracao.url}
+                        onChange={(e) => setNovaIntegracao(prev => ({ ...prev, url: e.target.value }))}
+                        className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                        placeholder="URL da API (opcional)"
+                        autoComplete="off"
+                        disabled={!isEditing && selectedIntegracao !== null}
+                      />
+                    </div>
+                  )}
+                  {novaIntegracao.nome !== 'Cloudflare' && (
+                    <div>
+                      <label className="text-sm text-muted-foreground">Origem</label>
+                      <Input
+                        value={novaIntegracao.origem}
+                        onChange={(e) => setNovaIntegracao(prev => ({ ...prev, origem: e.target.value }))}
+                        className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                        placeholder="Origem da integração"
+                        autoComplete="off"
+                        disabled={!isEditing && selectedIntegracao !== null}
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex gap-3 mt-6">
@@ -543,6 +594,63 @@ export default function IntegracoesPage() {
                   </Button>
                 </div>
               </form>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {showTypeSelectionModal && createPortal(
+        <>
+          <div className="modal-overlay"></div>
+          <div className="fixed inset-0 flex items-center justify-center z-[1000]">
+            <div className="bg-card p-6 rounded-lg shadow-lg card-neomorphic max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-primary/10 shadow-inner card-neomorphic">
+                    <Link2 className="text-primary" size={18} />
+                  </div>
+                  Selecione o tipo de integração
+                </h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTypeSelectionModal(false)}
+                  className="text-muted-foreground hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <p className="text-muted-foreground mb-6">
+                Escolha o tipo de integração que deseja configurar:
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="btn-neomorphic bg-button-dark text-white hover:bg-button-dark/90 active:bg-button-dark/80 transition-all duration-200 py-6 h-auto flex flex-col gap-2"
+                  onClick={setupCloudflareIntegration}
+                >
+                  <div className="p-2 rounded-full bg-primary/10 shadow-inner card-neomorphic">
+                    <RiPlugLine className="text-primary" size={24} />
+                  </div>
+                  <span>Cloudflare</span>
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="btn-neomorphic bg-button-dark text-white hover:bg-button-dark/90 active:bg-button-dark/80 transition-all duration-200 py-6 h-auto flex flex-col gap-2"
+                  onClick={setupGenericIntegration}
+                >
+                  <div className="p-2 rounded-full bg-primary/10 shadow-inner card-neomorphic">
+                    <RiLinkM className="text-primary" size={24} />
+                  </div>
+                  <span>Genérica</span>
+                </Button>
+              </div>
             </div>
           </div>
         </>,

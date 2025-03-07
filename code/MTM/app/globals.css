@@ -225,14 +225,26 @@
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   background: transparent;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Botão ativo (pressionado) */
 .switch-button[data-active="true"] {
   box-shadow: 
     inset 2px 2px 4px rgba(0, 0, 0, 0.3),
     inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+  transform: translateY(1px);
+}
+
+/* Botão inativo (elevado) */
+.switch-button[data-active="false"] {
+  box-shadow: 
+    -2px -2px 5px rgba(255, 255, 255, 0.05),
+    2px 2px 5px rgba(0, 0, 0, 0.3);
+  transform: translateY(0);
 }
 
 .switch-button[data-active="true"] svg {
@@ -287,6 +299,28 @@ table tr:hover {
 
 .sidebar-item[data-active="false"]:hover {
   @apply bg-gray-100 dark:bg-zinc-700;
+}
+
+.sidebar-item.w-10.h-10 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 9999px;
+}
+
+.sidebar-item.w-10.h-10[data-active="true"] {
+  box-shadow: 
+    -2px -2px 5px rgba(255, 255, 255, 0.05),
+    2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-item.w-10.h-10[data-active="false"]:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    -1px -1px 3px rgba(255, 255, 255, 0.03),
+    1px 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* Animações para transições de página */

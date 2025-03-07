@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
+import { useProfileRefresh } from '@/hooks/use-profile-refresh'
 import { PlusCircle } from 'lucide-react'
 import { 
   RiServerLine, 
@@ -60,6 +61,7 @@ interface ListVM {
 
 export default function DashboardPage() {
   const { profile } = useAuth()
+  useProfileRefresh()
   const [servidores, setServidores] = useState<Servidor[]>([])
   const [upgradeOptions, setUpgradeOptions] = useState<ListVM[]>([])
   const [loading, setLoading] = useState(true)

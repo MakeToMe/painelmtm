@@ -11,6 +11,7 @@ interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, userData: Partial<MtmUser>) => Promise<void>
   signIn: (identifier: string, password: string, loginMethod: 'email' | 'whatsapp') => Promise<MtmUser>
   signOut: () => Promise<void>
+  updateProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -140,6 +141,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Erro ao buscar perfil:', error)
+    }
+  }
+
+  // Função para atualizar o perfil do usuário após modificações
+  async function updateProfile() {
+    const user = state.user
+    if (!user?.email) {
+      console.log('updateProfile - Sem email do usuário, retornando')
+      return
+    }
+
+    try {
+      console.log('Atualizando perfil para:', user.email)
+      // Buscar o perfil do usuário usando a API
+      const response = await fetch(`/api/auth/profile?email=${encodeURIComponent(user.email)}`)
+      
+      if (!response.ok) {
+        console.error('Erro ao buscar perfil atualizado do usuário')
+        return
+      }
+      
+      const profileData = await response.json()
+      
+      // Atualizar o estado com os novos dados
+      setState(prev => ({
+        ...prev,
+        profile: profileData,
+        user: profileData
+      }))
+
+      // Atualizar também o localStorage para manter a consistência
+      localStorage.setItem('mtm_user', JSON.stringify(profileData))
+      
+      console.log('Perfil atualizado com sucesso:', profileData)
+    } catch (error) {
+      console.error('Erro ao atualizar perfil do usuário:', error)
     }
   }
 
@@ -285,7 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ ...state, signIn, signUp, signOut, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

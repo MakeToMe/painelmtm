@@ -126,7 +126,7 @@ export function Sidebar() {
         </div>
 
         {/* Links de Navegação */}
-        <nav className="flex-1 p-4">
+        <nav className={`flex-1 ${collapsed ? 'px-3' : 'p-4'}`}>
           <ul className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -136,7 +136,7 @@ export function Sidebar() {
                 <li key={item.name}>
                   <Link
                     href={item.href}
-                    className={`sidebar-item`}
+                    className={`sidebar-item ${collapsed ? 'justify-center px-0 w-10 h-10 mx-auto' : ''}`}
                     data-active={isActive}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
@@ -151,13 +151,13 @@ export function Sidebar() {
         </nav>
 
         {/* Footer com Theme Toggle e Logout */}
-        <div className="p-4 border-t border-border/30">
+        <div className={`border-t border-border/30 ${collapsed ? 'px-3 py-4' : 'p-4'}`}>
           <ul className="space-y-2">
             {/* Botão Contratar servidor */}
             <li>
               <Link
                 href="/contratar-servidor"
-                className="sidebar-item w-full bg-emerald-500/10 hover:bg-emerald-500/15 btn-neomorphic"
+                className={`sidebar-item w-full bg-emerald-500/10 hover:bg-emerald-500/15 btn-neomorphic ${collapsed ? 'justify-center px-0 w-10 h-10 mx-auto' : ''}`}
                 data-active={pathname === '/contratar-servidor'}
               >
                 <RiArrowRightSLine className="w-5 h-5 flex-shrink-0 text-emerald-400" />
@@ -170,7 +170,7 @@ export function Sidebar() {
             <li>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="sidebar-item w-full"
+                className={`sidebar-item w-full ${collapsed ? 'justify-center px-0 w-10 h-10 mx-auto' : ''}`}
                 data-active={false}
               >
                 {theme === 'dark' ? (
@@ -188,7 +188,7 @@ export function Sidebar() {
             <li>
               <button
                 onClick={signOut}
-                className="sidebar-item w-full"
+                className={`sidebar-item w-full ${collapsed ? 'justify-center px-0 w-10 h-10 mx-auto' : ''}`}
                 data-active={false}
               >
                 <RiLogoutBoxLine className="w-5 h-5 flex-shrink-0" />
