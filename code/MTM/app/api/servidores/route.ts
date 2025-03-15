@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const uid = searchParams.get('uid')
     const id = searchParams.get('id')
+    let isAdmin = searchParams.get('isAdmin') === 'true'
+    
+    console.log('API - Parâmetros:', { uid, id, isAdmin })
     
     if (!uid) {
       return NextResponse.json(
@@ -35,11 +38,35 @@ export async function GET(request: Request) {
       )
     }
 
-    // Buscar servidores do usuário
+    // Verificar se o usuário realmente é admin
+    if (isAdmin) {
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from('mtm_users')
+        .select('admin')
+        .eq('uid', uid)
+        .single()
+      
+      console.log('API - Verificação de admin:', userData)
+      
+      // Se houver erro ou o usuário não for admin, ignoramos o parâmetro isAdmin
+      if (userError || userData?.admin !== true) {
+        console.log('API - Usuário não é admin, aplicando filtro por titular')
+        isAdmin = false
+      }
+    }
+
+    // Buscar servidores com informações do titular
     let query = supabaseAdmin
       .from('servidores')
-      .select('*')
-      .eq('titular', uid)
+      .select(`
+        *,
+        mtm_users!titular(nome)
+      `)
+    
+    // Se o usuário não for admin, filtrar apenas pelos servidores dele
+    if (!isAdmin) {
+      query = query.eq('titular', uid)
+    }
     
     // Se um ID específico for fornecido, filtrar por ele também
     if (id) {
@@ -47,16 +74,27 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await query
+    
+    console.log('API - Servidores encontrados:', data?.length || 0)
+    console.log('API - Dados brutos:', JSON.stringify(data, null, 2))
+    
+    // Transformar os dados para incluir o nome do titular diretamente
+    const servidoresFormatados = data?.map(servidor => ({
+      ...servidor,
+      titular_nome: servidor.mtm_users?.nome || null
+    })) || []
 
     if (error) {
+      console.log('API - Erro na consulta:', error)
       return NextResponse.json(
         { error: 'Erro ao buscar servidores', details: error.message },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(servidoresFormatados)
   } catch (error) {
+    console.log('API - Erro interno:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -100,7 +138,11 @@ export async function POST(request: Request) {
         location: data.location || null,
         sistema: data.sistema || null,
         tipo: data.tipo || null,
-        status: data.status || null
+        status: data.status || 'online',
+        // Campos do provedor
+        url_prov: data.providerLoginUrl || null,
+        conta_prov: data.providerLogin || null,
+        senha_prov: data.providerPassword || null
       })
       .select()
       .single()
@@ -203,6 +245,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     const uid = searchParams.get('uid')
+    const isAdmin = searchParams.get('isAdmin') === 'true'
     
     if (!id || !uid) {
       return NextResponse.json(
@@ -220,18 +263,20 @@ export async function DELETE(request: Request) {
     }
 
     // Verificar se o servidor pertence ao usuário
-    const { data: existingServer, error: checkError } = await supabaseAdmin
-      .from('servidores')
-      .select('uid')
-      .eq('uid', id)
-      .eq('titular', uid)
-      .single()
+    if (!isAdmin) {
+      const { data: existingServer, error: checkError } = await supabaseAdmin
+        .from('servidores')
+        .select('uid')
+        .eq('uid', id)
+        .eq('titular', uid)
+        .single()
 
-    if (checkError || !existingServer) {
-      return NextResponse.json(
-        { error: 'Servidor não encontrado ou não pertence ao usuário' },
-        { status: 403 }
-      )
+      if (checkError || !existingServer) {
+        return NextResponse.json(
+          { error: 'Servidor não encontrado ou não pertence ao usuário' },
+          { status: 403 }
+        )
+      }
     }
 
     // Remover servidor
@@ -239,7 +284,6 @@ export async function DELETE(request: Request) {
       .from('servidores')
       .delete()
       .eq('uid', id)
-      .eq('titular', uid)
 
     if (error) {
       return NextResponse.json(

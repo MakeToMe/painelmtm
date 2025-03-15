@@ -29,6 +29,7 @@ import {
 } from 'react-icons/ri'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AddServerModal, ServerFormData } from '@/components/modals/add-server-modal'
 
 interface Servidor {
   uid: string
@@ -45,6 +46,13 @@ interface Servidor {
   sistema: string | null
   tipo: string | null
   status: 'online' | 'offline' | null
+  mtm_users: {
+    nome: string | null
+  } | null
+  titular_nome: string | null
+  url_prov: string | null
+  login_prov: string | null
+  senha_prov: string | null
 }
 
 interface ListVM {
@@ -70,6 +78,8 @@ export default function DashboardPage() {
   const [selectedServer, setSelectedServer] = useState<Servidor | null>(null)
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table')
   const [currentView, setCurrentView] = useState<'details' | 'upgrade'>('details')
+  const [isAddServerModalOpen, setIsAddServerModalOpen] = useState(false)
+  const [filtroTitular, setFiltroTitular] = useState<string>('todos')
 
   const handleCopy = (text: string | null) => {
     if (!text) return
@@ -82,6 +92,46 @@ export default function DashboardPage() {
     }
   }, [profile])
 
+  // Função para ordenar os servidores por titular
+  const ordenarServidores = (servidores: Servidor[]) => {
+    return [...servidores].sort((a, b) => {
+      // Primeiro, ordenar por titular_nome
+      const titularA = a.titular_nome || '';
+      const titularB = b.titular_nome || '';
+      
+      if (titularA !== titularB) {
+        return titularA.localeCompare(titularB);
+      }
+      
+      // Se os titulares forem iguais, ordenar por nome do servidor
+      const nomeA = a.nome || '';
+      const nomeB = b.nome || '';
+      return nomeA.localeCompare(nomeB);
+    });
+  };
+
+  // Função para obter a lista de titulares únicos
+  const getTitularesUnicos = () => {
+    const titulares = servidores
+      .map(servidor => servidor.titular_nome)
+      .filter((titular, index, self) => 
+        titular && self.indexOf(titular) === index
+      ) as string[];
+    
+    return titulares.sort((a, b) => a.localeCompare(b));
+  };
+
+  // Função para filtrar servidores pelo titular selecionado
+  const getServidoresFiltrados = () => {
+    if (filtroTitular === 'todos') {
+      return servidores;
+    }
+    
+    return servidores.filter(servidor => 
+      servidor.titular_nome === filtroTitular
+    );
+  };
+
   const fetchServidores = async (showLoading = true) => {
     if (showLoading) {
       setLoading(true)
@@ -90,7 +140,15 @@ export default function DashboardPage() {
     }
 
     try {
-      const response = await fetch(`/api/servidores?uid=${profile?.uid}`)
+      // Verifica se o usuário é administrador para enviar o parâmetro isAdmin
+      const isAdmin = profile?.admin === true
+      console.log('Profile:', profile)
+      console.log('É administrador?', isAdmin)
+      
+      const apiUrl = `/api/servidores?uid=${profile?.uid}${isAdmin ? '&isAdmin=true' : ''}`
+      console.log('URL da API:', apiUrl)
+      
+      const response = await fetch(apiUrl)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -98,7 +156,9 @@ export default function DashboardPage() {
       }
       
       const data = await response.json()
-      setServidores(data || [])
+      console.log('Servidores carregados:', data?.length || 0)
+      console.log('Dados dos servidores:', JSON.stringify(data, null, 2))
+      setServidores(ordenarServidores(data || []))
     } catch (error) {
       console.error('Erro ao carregar servidores:', error)
     } finally {
@@ -112,6 +172,63 @@ export default function DashboardPage() {
   
   const handleRefresh = () => {
     fetchServidores(false)
+  }
+
+  const handleAddServer = async (serverData: ServerFormData) => {
+    // Exibir estado de carregamento
+    setLoading(true);
+    
+    try {
+      console.log('Dados do novo servidor:', serverData)
+      
+      // Dados a serem enviados para a API
+      const serverPayload = {
+        titular: serverData.titular || profile?.uid, // Usa o titular selecionado pelo admin ou o usuário atual
+        nome: serverData.nome,
+        sistema: serverData.sistema,
+        ip: serverData.ip,
+        cpu: serverData.cpu,
+        ram: serverData.ram,
+        banda: serverData.banda,
+        storage: serverData.storage,
+        location: serverData.location,
+        tipo: serverData.tipo, // Campo tipo (Computação ou Armazenamento)
+        senha: serverData.senha, // Garantir que a senha seja enviada
+        // Mapear para os nomes corretos das colunas no banco
+        providerLoginUrl: serverData.providerLoginUrl,
+        providerLogin: serverData.providerLogin,
+        providerPassword: serverData.providerPassword
+      }
+      
+      // Enviar dados para a API
+      const response = await fetch('/api/servidores', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(serverPayload)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao salvar servidor');
+      }
+      
+      // Processar resposta bem-sucedida
+      const data = await response.json();
+      console.log('Servidor adicionado com sucesso:', data);
+      
+      // Atualizar a lista de servidores
+      fetchServidores();
+      
+      // Fechar o modal
+      setIsAddServerModalOpen(false);
+    } catch (error) {
+      console.error('Erro ao adicionar servidor:', error);
+      // Se tiver um componente de notificação, poderia exibir aqui
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -509,9 +626,33 @@ export default function DashboardPage() {
                   <RefreshCw className="h-5 w-5 text-primary" />
                 )}
               </Button>
+
+              {/* Filtro por titular (apenas para admins) */}
+              {profile?.admin && getTitularesUnicos().length > 0 && (
+                <div className="relative ml-2">
+                  <select
+                    value={filtroTitular}
+                    onChange={(e) => setFiltroTitular(e.target.value)}
+                    className="bg-card border border-border/30 text-white rounded-md py-1.5 pl-3 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary shadow-inner appearance-none btn-neomorphic"
+                  >
+                    <option value="todos">Todos os titulares</option>
+                    {getTitularesUnicos().map((titular) => (
+                      <option key={titular} value={titular}>
+                        {titular}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                    <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              )}
             </div>
             
             <button 
+              onClick={() => setIsAddServerModalOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-button-dark text-white hover:bg-button-dark/90 transition-colors btn-neomorphic"
             >
               <PlusCircle className="w-4 h-4" />
@@ -523,84 +664,192 @@ export default function DashboardPage() {
             <div className="bg-card rounded-lg overflow-hidden card-neomorphic">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="text-left p-4 text-muted-foreground font-medium">SO</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Nome</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">IP</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Status</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Sistema</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">CPU</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">RAM</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">NVMe</th>
-                      <th className="text-right p-4 text-muted-foreground font-medium">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {servidores.map((servidor) => (
-                      <tr key={servidor.uid} className="border-b border-border/50 hover:bg-muted/5">
-                        <td className="p-4">
-                          {servidor.sistema?.toLowerCase().includes('ubuntu') && <RiUbuntuFill className="w-6 h-6 text-[#E95420]" />}
-                          {servidor.sistema?.toLowerCase().includes('windows') && <RiWindowsFill className="w-6 h-6 text-[#00A4EF]" />}
-                          {servidor.sistema?.toLowerCase().includes('centos') && <RiCentosFill className="w-6 h-6 text-[#932279]" />}
-                        </td>
-                        <td className="p-4">
-                          <span className="font-medium">{servidor.nome || '-'}</span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span>{servidor.ip}</span>
-                            <button 
-                              onClick={() => handleCopy(servidor.ip)}
-                              className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                            >
-                              <RiFileCopyLine className="w-4 h-4 text-primary" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            {servidor.status === 'online' && (
-                              <div className="flex items-center gap-1.5">
-                                <RiCheckboxCircleFill className="w-4 h-4 text-green-500" />
-                                <span className="text-green-500 font-medium">Online</span>
-                              </div>
-                            )}
-                            {servidor.status === 'offline' && (
-                              <div className="flex items-center gap-1.5">
-                                <RiCloseCircleFill className="w-4 h-4 text-red-500" />
-                                <span className="text-red-500 font-medium">Offline</span>
-                              </div>
-                            )}
-                            {servidor.status === null && (
-                              <div className="flex items-center gap-1.5">
-                                <RiQuestionLine className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-400 font-medium">Desconhecido</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4">{servidor.sistema || '-'}</td>
-                        <td className="p-4">{servidor.cpu} vCPU</td>
-                        <td className="p-4">{servidor.ram} GB</td>
-                        <td className="p-4">{servidor.storage} GB</td>
-                        <td className="p-4 text-right">
-                          <button
-                            onClick={() => setSelectedServer(servidor)}
-                            className="inline-flex items-center justify-center rounded-md bg-button-dark p-2 text-white hover:bg-button-dark/80 transition-colors btn-neomorphic"
-                          >
-                            <RiEyeLine className="w-4 h-4" />
-                          </button>
-                        </td>
+                  {!profile?.admin && (
+                    <thead>
+                      <tr className="border-b border-border/50">
+                        <th className="text-left p-4 text-muted-foreground font-medium">SO</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Nome</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">IP</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">Senha</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">CPU</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">RAM</th>
+                        <th className="text-left p-4 text-muted-foreground font-medium">NVMe</th>
+                        <th className="text-right p-4 text-muted-foreground font-medium">Ações</th>
                       </tr>
-                    ))}
+                    </thead>
+                  )}
+                  <tbody>
+                    {profile?.admin ? (
+                      // Versão para administradores com agrupamento por titular
+                      <>
+                        {getServidoresFiltrados().reduce((acc: JSX.Element[], servidor, index, array) => {
+                          // Verificar se é o primeiro servidor ou se o titular mudou
+                          const isNewTitular = index === 0 || servidor.titular_nome !== array[index - 1].titular_nome;
+                          
+                          // Se for um novo titular, adicionar uma linha de cabeçalho
+                          if (isNewTitular && servidor.titular_nome) {
+                            // Contar quantos servidores este titular possui
+                            const servidoresDoTitular = array.filter(s => s.titular_nome === servidor.titular_nome).length;
+                            
+                            acc.push(
+                              <tr key={`header-${servidor.titular}`} className="bg-primary/5 border-t border-b border-border/50">
+                                <td colSpan={9} className="p-2 px-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="font-medium text-primary">
+                                      {servidor.titular_nome} ({servidoresDoTitular} {servidoresDoTitular === 1 ? 'servidor' : 'servidores'})
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                            
+                            // Adicionar linha com os cabeçalhos das colunas
+                            acc.push(
+                              <tr key={`columns-${servidor.titular}`} className="border-b border-border/50 bg-card">
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">SO</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">Nome</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">IP</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">Senha</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">Titular</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">CPU</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">RAM</th>
+                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">NVMe</th>
+                                <th className="text-right p-2 text-muted-foreground font-medium text-sm">Ações</th>
+                              </tr>
+                            );
+                          }
+                          
+                          // Adicionar a linha do servidor
+                          acc.push(
+                            <tr key={servidor.uid} className="border-b border-border/50 hover:bg-muted/5">
+                              <td className="p-4">
+                                {servidor.sistema?.toLowerCase().includes('ubuntu') && <RiUbuntuFill className="w-6 h-6 text-[#E95420]" />}
+                                {servidor.sistema?.toLowerCase().includes('windows') && <RiWindowsFill className="w-6 h-6 text-[#00A4EF]" />}
+                                {servidor.sistema?.toLowerCase().includes('centos') && <RiCentosFill className="w-6 h-6 text-[#932279]" />}
+                              </td>
+                              <td className="p-4">
+                                {servidor.url_prov ? (
+                                  <a 
+                                    href={servidor.url_prov.startsWith('http') ? servidor.url_prov : `https://${servidor.url_prov}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-primary hover:underline"
+                                  >
+                                    {servidor.nome || 'Acessar painel'}
+                                  </a>
+                                ) : (
+                                  <span className="font-medium">{servidor.nome || '-'}</span>
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                  <span>{servidor.ip}</span>
+                                  <button 
+                                    onClick={() => handleCopy(servidor.ip)}
+                                    className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                  >
+                                    <RiFileCopyLine className="w-4 h-4 text-primary" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                  <span>••••••••</span>
+                                  <button 
+                                    onClick={() => handleCopy(servidor.senha_prov)}
+                                    className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                    title="Copiar senha"
+                                  >
+                                    <RiFileCopyLine className="w-4 h-4 text-primary" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-4">{servidor.titular_nome || '-'}</td>
+                              <td className="p-4">{servidor.cpu} vCPU</td>
+                              <td className="p-4">{servidor.ram} GB</td>
+                              <td className="p-4">{servidor.storage} GB</td>
+                              <td className="p-4 text-right">
+                                <button
+                                  onClick={() => setSelectedServer(servidor)}
+                                  className="inline-flex items-center justify-center rounded-md bg-button-dark p-2 text-white hover:bg-button-dark/80 transition-colors btn-neomorphic"
+                                >
+                                  <RiEyeLine className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                          
+                          return acc;
+                        }, [])}
+                      </>
+                    ) : (
+                      // Versão normal para usuários não-admin
+                      <>
+                        {getServidoresFiltrados().map((servidor) => (
+                          <tr key={servidor.uid} className="border-b border-border/50 hover:bg-muted/5">
+                            <td className="p-4">
+                              {servidor.sistema?.toLowerCase().includes('ubuntu') && <RiUbuntuFill className="w-6 h-6 text-[#E95420]" />}
+                              {servidor.sistema?.toLowerCase().includes('windows') && <RiWindowsFill className="w-6 h-6 text-[#00A4EF]" />}
+                              {servidor.sistema?.toLowerCase().includes('centos') && <RiCentosFill className="w-6 h-6 text-[#932279]" />}
+                            </td>
+                            <td className="p-4">
+                              {servidor.url_prov ? (
+                                <a 
+                                  href={servidor.url_prov.startsWith('http') ? servidor.url_prov : `https://${servidor.url_prov}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-primary hover:underline"
+                                >
+                                  {servidor.nome || 'Acessar painel'}
+                                </a>
+                              ) : (
+                                <span className="font-medium">{servidor.nome || '-'}</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <span>{servidor.ip}</span>
+                                <button 
+                                  onClick={() => handleCopy(servidor.ip)}
+                                  className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                >
+                                  <RiFileCopyLine className="w-4 h-4 text-primary" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <span>••••••••</span>
+                                <button 
+                                  onClick={() => handleCopy(servidor.senha_prov)}
+                                  className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                >
+                                  <RiFileCopyLine className="w-4 h-4 text-primary" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-4">{servidor.cpu} vCPU</td>
+                            <td className="p-4">{servidor.ram} GB</td>
+                            <td className="p-4">{servidor.storage} GB</td>
+                            <td className="p-4 text-right">
+                              <button
+                                onClick={() => setSelectedServer(servidor)}
+                                className="inline-flex items-center justify-center rounded-md bg-button-dark p-2 text-white hover:bg-button-dark/80 transition-colors btn-neomorphic"
+                              >
+                                <RiEyeLine className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {servidores.map((servidor) => (
+              {getServidoresFiltrados().map((servidor) => (
                 <div 
                   key={servidor.uid}
                   className="bg-card rounded-lg p-6 hover:bg-muted/10 transition-colors cursor-pointer card-neomorphic"
@@ -668,6 +917,13 @@ export default function DashboardPage() {
           )}
         </>
       )}
+      
+      {/* Modal de Adicionar Servidor */}
+      <AddServerModal 
+        isOpen={isAddServerModalOpen}
+        onClose={() => setIsAddServerModalOpen(false)}
+        onSave={handleAddServer}
+      />
     </div>
   )
 }
