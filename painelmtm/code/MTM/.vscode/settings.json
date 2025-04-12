@@ -1,0 +1,6 @@
+{
+    "debug.allowBreakpointsEverywhere": true,
+    "terminal.integrated.allowMnemonics": true,
+    "git.allowNoVerifyCommit": true,
+    "git.allowForcePush": true
+}
