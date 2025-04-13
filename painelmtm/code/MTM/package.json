@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001 --hostname 0.0.0.0",
+    "dev:turbo": "next dev --turbo --port 3001 --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -39,7 +40,6 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.2",
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@types/js-cookie": "^3.0.6",
@@ -51,8 +51,6 @@
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
-    "eslint": "8.49.0",
-    "eslint-config-next": "13.5.1",
     "framer-motion": "^11.0.8",
     "input-otp": "^1.2.4",
     "jose": "^5.9.6",
@@ -79,8 +77,13 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@eslint/config-array": "^0.20.0",
+    "@eslint/object-schema": "^2.1.6",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.1.0",
     "postcss": "^8.4.49",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.17"
   }
 }
