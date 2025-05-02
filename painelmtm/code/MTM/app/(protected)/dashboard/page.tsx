@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { useProfileRefresh } from '@/hooks/use-profile-refresh'
+import { AgentInstallationModal } from '@/components/modals/agent-installation-modal'
 import { PlusCircle } from 'lucide-react'
 import { 
   RiServerLine, 
@@ -38,6 +39,10 @@ import {
 } from 'recharts'
 import { RealtimeMonitor } from './realtime-monitor'
 import { ServerCardView } from '@/components/dashboard/server-card-view'
+import { ProcessMetricsTable } from '@/components/dashboard/process-metrics-table'
+import { ProcessTopCards } from '@/components/dashboard/process-top-cards'
+import { ResourceUsageChart } from '@/components/dashboard/resource-usage-chart'
+import { ResourceInfoCell } from '@/components/dashboard/resource-info-cell'
 
 interface Servidor {
   uid: string
@@ -110,6 +115,10 @@ export default function DashboardPage() {
   const [filtroTitular, setFiltroTitular] = useState<string>('todos')
   const [monitorDataMap, setMonitorDataMap] = useState<Record<string, MonitorData>>({});
   const [monitorLoading, setMonitorLoading] = useState(true);
+  
+  // Estado para o modal de instalação do agente
+  const [isAgentInstallModalOpen, setIsAgentInstallModalOpen] = useState(false);
+  const [newServerData, setNewServerData] = useState<{uid: string, ip: string, nome: string, user_ssh: string, senha: string} | null>(null);
 
   const handleCopy = (text: string | null) => {
     if (!text) return
@@ -261,19 +270,21 @@ export default function DashboardPage() {
       const serverPayload = {
         titular: serverData.titular || profile?.uid, // Usa o titular selecionado pelo admin ou o usuário atual
         nome: serverData.nome,
-        sistema: serverData.sistema,
         ip: serverData.ip,
-        cpu: serverData.cpu,
-        ram: serverData.ram,
-        banda: serverData.banda,
-        storage: serverData.storage,
         location: serverData.location,
         tipo: serverData.tipo, // Campo tipo (Computação ou Armazenamento)
-        senha: serverData.senha, // Garantir que a senha seja enviada
+        senha: serverData.senha, // Senha SSH
+        user_ssh: serverData.user_ssh, // Usuário SSH
         // Mapear para os nomes corretos das colunas no banco
         providerLoginUrl: serverData.providerLoginUrl,
         providerLogin: serverData.providerLogin,
-        providerPassword: serverData.providerPassword
+        providerPassword: serverData.providerPassword,
+        // Definir valores padrão para campos que foram removidos do formulário
+        sistema: 'Linux',
+        cpu: 1,
+        ram: 1,
+        banda: 1,
+        storage: 10
       }
       
       // Enviar dados para a API
@@ -297,14 +308,35 @@ export default function DashboardPage() {
       // Atualizar a lista de servidores
       fetchServidores();
       
-      // Fechar o modal
-      setIsAddServerModalOpen(false);
+      // Não fechamos mais o modal aqui, isso será feito após a instalação do agente
+      // Retornar os dados do servidor para que possam ser usados pelo modal de instalação
+      return {
+        uid: data.uid,
+        ip: serverData.ip,
+        nome: serverData.nome
+      };
     } catch (error) {
       console.error('Erro ao adicionar servidor:', error);
       // Se tiver um componente de notificação, poderia exibir aqui
+      return null;
     } finally {
       setLoading(false);
     }
+  }
+  
+  // Função para lidar com a instalação do agente
+  const handleInstallAgent = (serverData: {uid: string, ip: string, nome: string, user_ssh: string, senha: string}) => {
+    // Armazenar os dados do servidor para uso no modal de instalação
+    setNewServerData(serverData);
+    
+    // Fechar o modal de adição de servidor
+    setIsAddServerModalOpen(false);
+    
+    // Abrir o modal de instalação do agente
+    setIsAgentInstallModalOpen(true);
+    
+    // Aqui seria o lugar para iniciar a conexão SSH e instalar o agente
+    // Por enquanto, apenas simulamos o processo no modal
   }
 
   useEffect(() => {
@@ -360,7 +392,10 @@ export default function DashboardPage() {
           <p className="mb-8 mt-2 text-center text-muted-foreground">
             Você ainda não tem nenhum servidor registrado no sistema.
           </p>
-          <button className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 btn-neomorphic">
+          <button 
+            onClick={() => setIsAddServerModalOpen(true)}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 btn-neomorphic"
+          >
             Registrar Servidor
           </button>
         </div>
@@ -468,54 +503,15 @@ export default function DashboardPage() {
                 <RealtimeMonitor selectedServer={selectedServer} />
               </div>
               
-              {/* Informações adicionais do servidor */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <div className="flex items-start gap-4 bg-card rounded-lg p-4 card-neomorphic">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <RiShieldLine className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">ROOT PASSWORD</p>
-                      <button 
-                        onClick={() => handleCopy(selectedServer.senha)}
-                        className="p-1.5 rounded-full hover:bg-primary/10 transition-colors"
-                      >
-                        <RiFileCopyLine className="w-4 h-4 text-primary" />
-                      </button>
-                    </div>
-                    <p className="text-card-foreground font-medium mt-1">••••••••</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-4 bg-card rounded-lg p-4 card-neomorphic">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <RiGlobalLine className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Location</p>
-                    <p className="text-card-foreground font-medium">{selectedServer.location || '-'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-4 bg-card rounded-lg p-4 card-neomorphic">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    {selectedServer.sistema?.toLowerCase().includes('ubuntu') ? (
-                      <RiUbuntuFill className="w-5 h-5 text-[#E95420]" />
-                    ) : selectedServer.sistema?.toLowerCase().includes('windows') ? (
-                      <RiWindowsFill className="w-5 h-5 text-[#00A4EF]" />
-                    ) : selectedServer.sistema?.toLowerCase().includes('centos') ? (
-                      <RiCentosFill className="w-5 h-5 text-[#932279]" />
-                    ) : (
-                      <RiTerminalBoxFill className="w-5 h-5 text-primary" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Sistema Operacional</p>
-                    <p className="text-card-foreground font-medium">{selectedServer.sistema || '-'}</p>
-                  </div>
-                </div>
-              </div>
+              {/* TOP 3 Processos - CPU e RAM */}
+              {selectedServer && selectedServer.ip && (
+                <ProcessTopCards serverIp={selectedServer.ip} refreshInterval={60000} />
+              )}
+              
+              {/* Métricas de Processos */}
+              {selectedServer && selectedServer.ip && (
+                <ProcessMetricsTable serverIp={selectedServer.ip} refreshInterval={10000} />
+              )}
             </div>
           ) : currentView === 'upgrade' ? (
             <div className="space-y-6">
@@ -679,9 +675,7 @@ export default function DashboardPage() {
                       <tr className="border-b border-border/50">
                         <th className="text-left p-4 text-muted-foreground font-medium">SO</th>
                         <th className="text-left p-4 text-muted-foreground font-medium">Nome</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">Senha</th>
                         <th className="text-left p-4 text-muted-foreground font-medium">IP</th>
-                        <th className="text-left p-4 text-muted-foreground font-medium">SSH</th>
                         <th className="text-left p-4 text-muted-foreground font-medium">CPU</th>
                         <th className="text-left p-4 text-muted-foreground font-medium">RAM</th>
                         <th className="text-left p-4 text-muted-foreground font-medium">NVMe</th>
@@ -704,7 +698,7 @@ export default function DashboardPage() {
                             
                             acc.push(
                               <tr key={`header-${servidor.titular}`} className="bg-primary/5 border-t border-b border-border/50">
-                                <td colSpan={10} className="p-2 px-4">
+                                <td colSpan={7} className="p-2 px-4">
                                   <div className="flex items-center justify-between">
                                     <div className="font-medium text-primary">
                                       {servidor.titular_nome} ({servidoresDoTitular} {servidoresDoTitular === 1 ? 'servidor' : 'servidores'})
@@ -718,10 +712,7 @@ export default function DashboardPage() {
                               <tr key={`columns-${servidor.titular}`} className="border-b border-border/50 bg-card">
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">SO</th>
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">Nome</th>
-                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">Senha</th>
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">IP</th>
-                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">SSH</th>
-                                <th className="text-left p-2 text-muted-foreground font-medium text-sm">Titular</th>
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">CPU</th>
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">RAM</th>
                                 <th className="text-left p-2 text-muted-foreground font-medium text-sm">NVMe</th>
@@ -755,17 +746,6 @@ export default function DashboardPage() {
                               </td>
                               <td className="p-4">
                                 <div className="flex items-center gap-2">
-                                  <span>••••••••</span>
-                                  <button 
-                                    onClick={() => handleCopy(servidor.senha_prov)}
-                                    className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                                  >
-                                    <RiFileCopyLine className="w-4 h-4 text-primary" />
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-4">
-                                <div className="flex items-center gap-2">
                                   <span>{servidor.ip}</span>
                                   <button 
                                     onClick={() => handleCopy(servidor.ip)}
@@ -775,21 +755,27 @@ export default function DashboardPage() {
                                   </button>
                                 </div>
                               </td>
-                              <td className="p-4">
-                                <div className="flex items-center gap-2">
-                                  <span>••••••••</span>
-                                  <button 
-                                    onClick={() => handleCopy(servidor.senha)}
-                                    className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                                  >
-                                    <RiFileCopyLine className="w-4 h-4 text-primary" />
-                                  </button>
-                                </div>
+                              <td className="p-4 min-w-[190px] py-5">
+                                <ResourceInfoCell
+                                  totalValue={`${servidor.cpu} vCPU`}
+                                  usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.cpu_usada || 0}
+                                  type="cpu"
+                                />
                               </td>
-                              <td className="p-4">{servidor.titular_nome || '-'}</td>
-                              <td className="p-4">{servidor.cpu} vCPU</td>
-                              <td className="p-4">{servidor.ram} GB</td>
-                              <td className="p-4">{servidor.storage} GB</td>
+                              <td className="p-4 min-w-[190px] py-5">
+                                <ResourceInfoCell
+                                  totalValue={`${servidor.ram} GB`}
+                                  usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.mem_usada_p || 0}
+                                  type="memory"
+                                />
+                              </td>
+                              <td className="p-4 min-w-[190px] py-5">
+                                <ResourceInfoCell
+                                  totalValue={`${servidor.storage} GB`}
+                                  usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.disco_uso_p || 0}
+                                  type="storage"
+                                />
+                              </td>
                               <td className="p-4 text-right">
                                 <button
                                   onClick={() => setSelectedServer(servidor)}
@@ -832,17 +818,6 @@ export default function DashboardPage() {
                             </td>
                             <td className="p-4">
                               <div className="flex items-center gap-2">
-                                <span>••••••••</span>
-                                <button 
-                                  onClick={() => handleCopy(servidor.senha_prov)}
-                                  className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                                >
-                                  <RiFileCopyLine className="w-4 h-4 text-primary" />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
                                 <span>{servidor.ip}</span>
                                 <button 
                                   onClick={() => handleCopy(servidor.ip)}
@@ -852,20 +827,27 @@ export default function DashboardPage() {
                                 </button>
                               </div>
                             </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <span>••••••••</span>
-                                <button 
-                                  onClick={() => handleCopy(servidor.senha)}
-                                  className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                                >
-                                  <RiFileCopyLine className="w-4 h-4 text-primary" />
-                                </button>
-                              </div>
+                            <td className="p-4 min-w-[190px] py-5">
+                              <ResourceInfoCell
+                                totalValue={`${servidor.cpu} vCPU`}
+                                usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.cpu_usada || 0}
+                                type="cpu"
+                              />
                             </td>
-                            <td className="p-4">{servidor.cpu} vCPU</td>
-                            <td className="p-4">{servidor.ram} GB</td>
-                            <td className="p-4">{servidor.storage} GB</td>
+                            <td className="p-4 min-w-[190px] py-5">
+                              <ResourceInfoCell
+                                totalValue={`${servidor.ram} GB`}
+                                usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.mem_usada_p || 0}
+                                type="memory"
+                              />
+                            </td>
+                            <td className="p-4 min-w-[190px] py-5">
+                              <ResourceInfoCell
+                                totalValue={`${servidor.storage} GB`}
+                                usedPercentage={servidor.ip && monitorDataMap[servidor.ip || '']?.disco_uso_p || 0}
+                                type="storage"
+                              />
+                            </td>
                             <td className="p-4 text-right">
                               <button
                                 onClick={() => setSelectedServer(servidor)}
@@ -899,7 +881,20 @@ export default function DashboardPage() {
         isOpen={isAddServerModalOpen}
         onClose={() => setIsAddServerModalOpen(false)}
         onSave={handleAddServer}
+        onInstallAgent={handleInstallAgent}
       />
+      
+      {/* Modal de Instalação do Agente */}
+      {newServerData && (
+        <AgentInstallationModal
+          isOpen={isAgentInstallModalOpen}
+          onClose={() => {
+            setIsAgentInstallModalOpen(false);
+            setNewServerData(null);
+          }}
+          serverData={newServerData}
+        />
+      )}
     </div>
   )
 }
