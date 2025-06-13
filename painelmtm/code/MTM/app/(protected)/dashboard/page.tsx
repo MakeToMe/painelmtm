@@ -119,6 +119,7 @@ export default function DashboardPage() {
   // Estado para o modal de instalação do agente
   const [isAgentInstallModalOpen, setIsAgentInstallModalOpen] = useState(false);
   const [newServerData, setNewServerData] = useState<{uid: string, ip: string, nome: string, user_ssh: string, senha: string} | null>(null);
+  const monitorIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCopy = (text: string | null) => {
     if (!text) return
@@ -133,49 +134,58 @@ export default function DashboardPage() {
   
   // Efeito para buscar dados de monitoramento para todos os servidores
   useEffect(() => {
-    if (servidores.length === 0) return;
-    
-    async function fetchAllMonitorData() {
-      setMonitorLoading(true);
-      
-      const newMonitorDataMap: Record<string, MonitorData> = {};
-      
-      // Criar um array de promessas para buscar dados de todos os servidores
-      const promises = servidores
-        .filter(servidor => servidor.ip) // Filtrar apenas servidores com IP
-        .map(async (servidor) => {
-          if (!servidor.ip) return;
-          
-          try {
-            const response = await fetch(`/api/monitor?ip=${servidor.ip}`);
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data && data.length > 0) {
-                newMonitorDataMap[servidor.ip] = data[0];
-              }
-            }
-          } catch (error) {
-            console.error(`Erro ao buscar dados de monitoramento para ${servidor.ip}:`, error);
-          }
-        });
-      
-      // Aguardar todas as promessas serem resolvidas
-      await Promise.all(promises);
-      
-      setMonitorDataMap(newMonitorDataMap);
-      setMonitorLoading(false);
+    // Limpa intervalo existente para evitar múltiplos timers
+    if (monitorIntervalRef.current) {
+      clearInterval(monitorIntervalRef.current)
     }
-    
-    fetchAllMonitorData();
-    
-    // Atualizar dados a cada 10 segundos
-    const interval = setInterval(() => {
-      fetchAllMonitorData();
-    }, 10000);
-    
-    return () => clearInterval(interval);
-  }, [servidores])
+
+    // Se não existir lista de servidores ainda, nada a fazer
+    if (servidores.length === 0) return
+
+    // Função auxiliar para buscar dados de monitoramento de um conjunto de IPs
+    const fetchMonitorData = async (ips: string[]) => {
+      setMonitorLoading(true)
+      const newMonitorDataMap: Record<string, MonitorData> = {}
+
+      const promises = ips.map(async (ip) => {
+        try {
+          const response = await fetch(`/api/monitor?ip=${ip}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data && data.length > 0) {
+              newMonitorDataMap[ip] = data[0]
+            }
+          }
+        } catch (error) {
+          console.error(`Erro ao buscar dados de monitoramento para ${ip}:`, error)
+        }
+      })
+
+      await Promise.all(promises)
+      setMonitorDataMap(newMonitorDataMap)
+      setMonitorLoading(false)
+    }
+
+    // Decide quais IPs devem ser consultados (todos ou apenas o selecionado)
+    const targetIps = selectedServer && selectedServer.ip
+      ? [selectedServer.ip]
+      : servidores.filter((s) => s.ip).map((s) => s.ip as string)
+
+    // Executa imediatamente a primeira busca
+    fetchMonitorData(targetIps)
+
+    // Agenda o próximo pool
+    monitorIntervalRef.current = setInterval(() => {
+      fetchMonitorData(targetIps)
+    }, 10000)
+
+    // Cleanup quando dependências mudarem ou componente desmontar
+    return () => {
+      if (monitorIntervalRef.current) {
+        clearInterval(monitorIntervalRef.current)
+      }
+    }
+  }, [servidores, selectedServer])
 
   // Função para ordenar os servidores por titular
   const ordenarServidores = (servidores: Servidor[]) => {

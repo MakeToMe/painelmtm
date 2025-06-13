@@ -137,11 +137,20 @@ export function LoginModal({ isOpen, onClose, initialState = 'login' }: LoginMod
         if (!formData.nome) throw new Error('Nome é obrigatório')
         if (!formData.whatsapp) throw new Error('WhatsApp é obrigatório')
 
-        await signUp(formData.email, formData.senha, {
+        // Validar dados antes de enviar
+        if (!formData.nome || !formData.email || !formData.senha) {
+          console.error('Dados incompletos:', formData)
+          throw new Error('Nome, email e senha são obrigatórios')
+        }
+        
+        console.log('Enviando dados para cadastro:', {
+          email: formData.email,
           nome: formData.nome,
-          whatsapp: formData.whatsapp,
-          email: formData.email
+          whatsapp: formData.whatsapp
         })
+        
+        // Chamar função de cadastro com dados diretamente
+        await signUp(formData.email, formData.senha, formData.nome, formData.whatsapp)
         
         // Indicar que o cadastro foi bem-sucedido
         setLoginSuccess(true);

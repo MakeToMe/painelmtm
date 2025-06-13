@@ -4,11 +4,9 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { AuthState, MtmUser } from '@/types/user'
 import { useRouter } from 'next/navigation'
 import Cookies from 'js-cookie'
-import { supabase } from '@/lib/supabase'
-import { hashPassword, generateToken } from '@/lib/hash'
 
 interface AuthContextType extends AuthState {
-  signUp: (email: string, password: string, userData: Partial<MtmUser>) => Promise<void>
+  signUp: (email: string, password: string, nome: string, whatsapp?: string) => Promise<void>
   signIn: (identifier: string, password: string, loginMethod: 'email' | 'whatsapp') => Promise<MtmUser>
   signOut: () => Promise<void>
   updateProfile: () => Promise<void>
@@ -33,24 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const userData = JSON.parse(user)
           
-          // Busca os dados atualizados do usuário
-          const { data: currentUser, error } = await supabase
-            .from('mtm_users')
-            .select('*')
-            .eq('email', userData.email)
-            .single()
-
-          if (error || !currentUser) {
-            console.error('Erro ao buscar usuário:', error)
+          const resp = await fetch(`/api/auth/profile?email=${encodeURIComponent(userData.email)}`)
+          if (!resp.ok) {
+            console.error('Erro ao buscar perfil:', await resp.text())
             return
           }
-
-          // Atualiza o estado com os dados mais recentes
-          setState({ 
-            user: currentUser,
-            profile: currentUser,
-            loading: false 
-          })
+          const currentUser = await resp.json()
+          setState({ user: currentUser, profile: currentUser, loading: false })
         } catch (error) {
           console.error('Erro ao processar dados do usuário:', error)
           setState({ user: null, profile: null, loading: false })
@@ -77,8 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Função para buscar o perfil do usuário
     const fetchUserProfile = async () => {
       try {
+        // Verificar se o email do usuário existe
+        if (!state.user?.email) {
+          console.error('Email do usuário não disponível para buscar perfil')
+          return
+        }
+        
         // Buscar o perfil do usuário usando a API
-        const response = await fetch(`/api/auth/profile?email=${encodeURIComponent(state.user!.email)}`)
+        const response = await fetch(`/api/auth/profile?email=${encodeURIComponent(state.user.email)}`)
         
         if (!response.ok) {
           console.error('Erro ao buscar perfil do usuário')
@@ -115,30 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       console.log('Buscando perfil para:', user.email)
-      const { data, error } = await supabase
-        .from('mtm_users')
-        .select('*')
-        .eq('email', user.email)
-        .maybeSingle()
-
-      console.log('Resultado busca perfil:', { data, error })
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error)
+      const resp = await fetch(`/api/auth/profile?email=${encodeURIComponent(user.email)}`)
+      if (!resp.ok) {
+        console.error('Erro ao buscar perfil:', await resp.text())
         return
       }
-
-      if (data) {
-        console.log('Perfil encontrado, atualizando estado')
-        setState(prev => {
-          console.log('Estado anterior:', prev)
-          const newState = { ...prev, profile: data }
-          console.log('Novo estado:', newState)
-          return newState
-        })
-      } else {
-        console.log('Nenhum perfil encontrado para o email:', user.email)
-      }
+      const data = await resp.json()
+      setState(prev => ({ ...prev, profile: data }))
     } catch (error) {
       console.error('Erro ao buscar perfil:', error)
     }
@@ -181,111 +157,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signIn(identifier: string, password: string, loginMethod: 'email' | 'whatsapp') {
-    console.log('Iniciando login:', { identifier, loginMethod })
     try {
-      // Hash da senha
-      const hashedPassword = await hashPassword(password);
-      console.log('Hash gerado:', hashedPassword);
-      console.log('Hash esperado:', 'c6ad5fd02239a677d8ad60c0161b10030a4f7dec12c2cff33fa055c7f7bd753b');
-      console.log('Hash igual?', hashedPassword === 'c6ad5fd02239a677d8ad60c0161b10030a4f7dec12c2cff33fa055c7f7bd753b');
+      const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: identifier, password, loginMethod })
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Erro ao fazer login')
 
-      // Buscar usuário diretamente no Supabase usando a chave ANON
-      console.log('Buscando usuário com:', {
-        [loginMethod === 'whatsapp' ? 'whatsapp' : 'email']: identifier,
-        password: hashedPassword
-      });
+      const { token, user } = data
 
-      const { data: user, error } = await supabase
-        .from('mtm_users')
-        .select('*')
-        .eq('password', hashedPassword)
-        .eq(loginMethod === 'whatsapp' ? 'whatsapp' : 'email', identifier)
-        .maybeSingle();
-
-      console.log('Resultado da busca:', { user, error });
-
-      if (error) {
-        console.error('Erro ao buscar usuário:', error);
-        throw new Error('Erro ao fazer login');
-      }
-
-      if (!user) {
-        // Vamos verificar se o usuário existe, independente da senha
-        console.log('Usuário não encontrado, verificando se existe...');
-        
-        const { data: userExists } = await supabase
-          .from('mtm_users')
-          .select('email, password')
-          .eq(loginMethod === 'whatsapp' ? 'whatsapp' : 'email', identifier)
-          .maybeSingle();
-
-        console.log('Usuário existe?', userExists);
-        if (userExists) {
-          console.log('Hash no banco:', userExists.password);
-          console.log('Hash gerado:', hashedPassword);
-          console.log('Usuário existe mas senha está incorreta');
-          throw new Error('Senha incorreta');
-        } else {
-          console.log('Usuário não encontrado');
-          throw new Error(loginMethod === 'whatsapp' ? 'WhatsApp não cadastrado' : 'Email não cadastrado');
-        }
-      }
-
-      // Gerar token
-      const token = await generateToken(user.email);
-
-      // Salvar token no usuário
-      const { error: updateError } = await supabase
-        .from('mtm_users')
-        .update({ token })
-        .eq('email', user.email);
-
-      if (updateError) {
-        console.error('Erro ao salvar token:', updateError);
-        throw new Error('Erro ao fazer login');
-      }
-
-      // Salvar dados localmente com opções explícitas para garantir que o cookie seja acessível
-      Cookies.set('mtm_token', token, { 
-        expires: 7,  // 7 dias
+      Cookies.set('mtm_token', token, {
+        expires: 7,
         path: '/',
         secure: true,
         sameSite: 'lax'
-      });
-      localStorage.setItem('mtm_user', JSON.stringify(user));
+      })
+      localStorage.setItem('mtm_user', JSON.stringify(user))
 
-      // Atualizar estado
-      setState(prev => ({
-        ...prev,
-        user,
-        profile: user,
-        loading: false
-      }));
-
-      // Forçar refresh para garantir que o middleware reconheça o novo token
-      router.refresh();
-      
-      // Adicionar um pequeno atraso antes de navegar para o dashboard
-      // para garantir que o refresh seja concluído
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 100);
-      
-      return user;
-    } catch (error: any) {
-      console.error('Erro no signIn:', error);
-      throw error;
+      setState(prev => ({ ...prev, user, profile: user, loading: false }))
+      router.refresh()
+      setTimeout(() => router.push('/dashboard'), 100)
+      return user
+    } catch (err) {
+      console.error('Erro no signIn:', err)
+      throw err
     }
   }
 
-  async function signUp(email: string, password: string, userData: Partial<MtmUser>) {
+  async function signUp(email: string, password: string, nome: string, whatsapp?: string) {
     try {
+      console.log('Iniciando cadastro com dados:', { email, nome, whatsapp })
+      
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, ...userData }),
+        body: JSON.stringify({ email, password, nome, whatsapp }),
       })
 
       const data = await response.json()
@@ -294,6 +204,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.error || 'Erro ao criar conta')
       }
 
+      console.log('Resposta do cadastro:', data)
+      
+      // Verificar se temos os dados necessários
+      if (!data.user) {
+        throw new Error('Dados do usuário não retornados pelo servidor')
+      }
+      
+      // Criar um objeto de usuário completo com os dados do cadastro
+      const userObject = {
+        ...data.user,
+        // Garantir que temos os dados do formulário caso a API não retorne
+        nome: data.user.nome || nome,
+        email: data.user.email || email,
+        whatsapp: data.user.whatsapp || whatsapp
+      }
+      
       // Salvar token no cookie para o middleware
       Cookies.set('mtm_token', data.token, { 
         expires: 1,
@@ -301,14 +227,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         secure: true,
         sameSite: 'lax'
       })
-      localStorage.setItem('mtm_user', JSON.stringify(data.user))
+      
+      // Salvar dados completos do usuário
+      localStorage.setItem('mtm_user', JSON.stringify(userObject))
 
+      // Atualizar o estado com os dados completos
       setState(prev => ({ 
         ...prev, 
-        user: data.user,
+        user: userObject,
+        profile: userObject,
         loading: false 
       }))
       
+      // Buscar perfil completo do banco de dados
       await fetchProfile()
       router.push('/dashboard')
     } catch (error: any) {

@@ -1,31 +1,16 @@
-import { supabase } from '@/lib/supabase';
 import { VMData } from '@/types/vm-data';
 
 export async function getStorageVMData(): Promise<VMData[]> {
   try {
-    console.log('getStorageVMData: Iniciando busca...');
-    const { data, error } = await supabase
-      .from('list_vms')
-      .select('*')
-      .eq('tipo', 'storage')
-      .order('usd', { ascending: true });
-
-    if (error) {
-      console.error('getStorageVMData: Erro ao buscar dados:', error);
-      throw error;
+    const res = await fetch('/api/storage-vms', { next: { revalidate: 60 } })
+    if (!res.ok) {
+      console.error('Erro HTTP /api/storage-vms', res.status)
+      return []
     }
-
-    console.log('getStorageVMData: Dados brutos:', data);
-
-    const vmsWithUid = data.map((vm: any) => ({
-      ...vm,
-      uid: vm.uid || `storage-${Math.random().toString(36).substr(2, 9)}`
-    }));
-
-    console.log('getStorageVMData: Dados processados:', vmsWithUid);
-    return vmsWithUid;
-  } catch (error) {
-    console.error('getStorageVMData: Erro:', error);
-    throw error;
+    const data: VMData[] = await res.json()
+    return data
+  } catch (err) {
+    console.error('Erro fetch /api/storage-vms', err)
+    return []
   }
 }

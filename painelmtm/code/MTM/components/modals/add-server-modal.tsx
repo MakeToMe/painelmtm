@@ -2,7 +2,7 @@
 
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useState, useEffect, useRef } from "react";
-import { RiServerLine, RiArrowDownSLine } from 'react-icons/ri';
+import { RiServerLine, RiArrowDownSLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,18 +17,15 @@ interface User {
 interface AddServerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (serverData: ServerFormData) => void;
+  onSave: (serverData: ServerFormData) => Promise<{uid: string, ip: string, nome: string} | null>;
+  onInstallAgent?: (serverData: {uid: string, ip: string, nome: string, user_ssh: string, senha: string}) => void;
 }
 
 export interface ServerFormData {
   nome: string;
-  sistema: string;
   ip: string;
+  user_ssh?: string;
   senha?: string;
-  cpu: number;
-  ram: number;
-  banda: number;
-  storage: number;
   location: string;
   providerLoginUrl: string;
   providerLogin: string;
@@ -37,7 +34,7 @@ export interface ServerFormData {
   tipo: 'Computação' | 'Armazenamento'; // Novo campo para o tipo de servidor
 }
 
-export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps) {
+export function AddServerModal({ isOpen, onClose, onSave, onInstallAgent }: AddServerModalProps) {
   const { profile } = useAuth();
   const isAdmin = profile?.admin === true;
   const [users, setUsers] = useState<User[]>([]);
@@ -49,13 +46,9 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
   
   const [formData, setFormData] = useState<ServerFormData>({
     nome: '',
-    sistema: '',
     ip: '',
+    user_ssh: 'root', // Valor padrão para user SSH
     senha: '',
-    cpu: 1,
-    ram: 1,
-    banda: 1,
-    storage: 10,
     location: '',
     providerLoginUrl: '',
     providerLogin: '',
@@ -63,6 +56,8 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
     titular: '',
     tipo: 'Computação' // Valor padrão
   });
+  
+  const [showPassword, setShowPassword] = useState(false);
 
   // Buscar usuários se o usuário for admin
   useEffect(() => {
@@ -102,9 +97,23 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    
+    // Chamar onSave e esperar o resultado
+    const savedServer = await onSave(formData);
+    
+    // Se o servidor foi salvo com sucesso e temos a função onInstallAgent
+    if (savedServer && onInstallAgent) {
+      // Chamar onInstallAgent com os dados do servidor
+      onInstallAgent({
+        uid: savedServer.uid,
+        ip: savedServer.ip,
+        nome: savedServer.nome,
+        user_ssh: formData.user_ssh || 'root',
+        senha: formData.senha || ''
+      });
+    }
   };
 
   const selectedUser = users.find(user => user.uid === formData.titular);
@@ -164,52 +173,6 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <h2 className="text-xl font-semibold text-white">Adicionar Servidor</h2>
-                    
-                    {/* Dropdown de seleção de tipo - visível para todos */}
-                    <div className="relative ml-3" ref={tipoDropdownRef}>
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 px-3 py-1 text-sm bg-muted/20 border border-border/50 rounded-md shadow-sm hover:bg-muted/30 focus:outline-none"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowTipoDropdown(!showTipoDropdown);
-                        }}
-                      >
-                        <span className="truncate max-w-[120px]">
-                          {formData.tipo}
-                        </span>
-                        <RiArrowDownSLine className="text-muted-foreground" />
-                      </button>
-                      
-                      {/* Dropdown menu */}
-                      {showTipoDropdown && (
-                        <div 
-                          className="absolute left-0 mt-1 w-56 rounded-md shadow-lg bg-card/95 backdrop-blur-sm border border-border/50 z-50 max-h-60 overflow-y-auto"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="py-1">
-                            {['Computação', 'Armazenamento'].map((tipo) => (
-                              <button
-                                key={tipo}
-                                type="button"
-                                className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted/40 ${
-                                  formData.tipo === tipo ? 'bg-primary/20 text-white' : 'text-white'
-                                }`}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleInputChange('tipo', tipo);
-                                  setShowTipoDropdown(false);
-                                }}
-                              >
-                                {tipo}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
                     
                     {/* Dropdown de seleção de usuário - apenas para admin */}
                     {isAdmin && (
@@ -274,11 +237,58 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
                 
                 <form onSubmit={handleSubmit} autoComplete="off">
                   <div className="space-y-6">
-                    {/* Primeira linha - Nome e Sistema */}
+                    {/* Primeira linha - Tipo de Servidor e Nome amigável */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Nome de referência */}
+                      {/* Tipo de Servidor (Dropdown) */}
                       <div>
-                        <label className="text-sm text-muted-foreground">Nome de referência</label>
+                        <label className="text-sm text-muted-foreground">Tipo de Servidor</label>
+                        <div className="relative mt-1">
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between px-3 py-2 text-sm bg-card border border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowTipoDropdown(!showTipoDropdown);
+                            }}
+                          >
+                            <span>{formData.tipo}</span>
+                            <RiArrowDownSLine className="text-muted-foreground" />
+                          </button>
+                          
+                          {/* Dropdown menu */}
+                          {showTipoDropdown && (
+                            <div 
+                              className="absolute left-0 right-0 mt-1 rounded-md shadow-lg bg-card/95 backdrop-blur-sm border border-border/50 z-50 max-h-60 overflow-y-auto"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="py-1">
+                                {['Computação', 'Armazenamento'].map((tipo) => (
+                                  <button
+                                    key={tipo}
+                                    type="button"
+                                    className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted/40 ${
+                                      formData.tipo === tipo ? 'bg-primary/20 text-white' : 'text-white'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleInputChange('tipo', tipo);
+                                      setShowTipoDropdown(false);
+                                    }}
+                                  >
+                                    {tipo}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Nome amigável */}
+                      <div>
+                        <label className="text-sm text-muted-foreground">Nome amigável</label>
                         <Input
                           value={formData.nome}
                           onChange={(e) => handleInputChange('nome', e.target.value)}
@@ -287,34 +297,10 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
                           autoComplete="off"
                         />
                       </div>
-
-                      {/* Sistema Operacional */}
-                      <div>
-                        <label className="text-sm text-muted-foreground">Sistema Operacional</label>
-                        <Input
-                          value={formData.sistema}
-                          onChange={(e) => handleInputChange('sistema', e.target.value)}
-                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                          placeholder="Ex.: Ubuntu 20"
-                          autoComplete="off"
-                        />
-                      </div>
                     </div>
 
-                    {/* Segunda linha - IP e Localidade */}
+                    {/* Segunda linha - Localidade e IP */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* IP da VM */}
-                      <div>
-                        <label className="text-sm text-muted-foreground">Informe o IP da VM</label>
-                        <Input
-                          value={formData.ip}
-                          onChange={(e) => handleInputChange('ip', e.target.value)}
-                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                          placeholder="11.11.11.11"
-                          autoComplete="off"
-                        />
-                      </div>
-                      
                       {/* Localidade */}
                       <div>
                         <label className="text-sm text-muted-foreground">Localidade</label>
@@ -326,81 +312,59 @@ export function AddServerModal({ isOpen, onClose, onSave }: AddServerModalProps)
                           autoComplete="off"
                         />
                       </div>
+
+                      {/* IP da VM */}
+                      <div>
+                        <label className="text-sm text-muted-foreground">IP da VM</label>
+                        <Input
+                          value={formData.ip}
+                          onChange={(e) => handleInputChange('ip', e.target.value)}
+                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                          placeholder="11.11.11.11"
+                          autoComplete="off"
+                        />
+                      </div>
                     </div>
 
-                    {/* Terceira linha - CPU e RAM */}
+                    {/* Terceira linha - User SSH e Senha SSH */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Quantidade de CPU */}
+                      {/* User SSH */}
                       <div>
-                        <label className="text-sm text-muted-foreground">Quantidade de CPU</label>
+                        <label className="text-sm text-muted-foreground">User SSH</label>
                         <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={formData.cpu}
-                          onChange={(e) => handleInputChange('cpu', parseInt(e.target.value))}
+                          value={formData.user_ssh}
+                          onChange={(e) => handleInputChange('user_ssh', e.target.value)}
                           className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
+                          placeholder="root"
                           autoComplete="off"
                         />
                       </div>
-
-                      {/* Quantidade de RAM */}
+                      
+                      {/* Senha SSH com toggle para visualizar */}
                       <div>
-                        <label className="text-sm text-muted-foreground">Quantidade de RAM</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={formData.ram}
-                          onChange={(e) => handleInputChange('ram', parseInt(e.target.value))}
-                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                          autoComplete="off"
-                        />
+                        <label className="text-sm text-muted-foreground">Senha SSH</label>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            value={formData.senha}
+                            onChange={(e) => handleInputChange('senha', e.target.value)}
+                            className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic pr-10"
+                            placeholder={showPassword ? "Digite a senha" : "••••••••••"}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? (
+                              <RiEyeOffLine className="h-5 w-5" />
+                            ) : (
+                              <RiEyeLine className="h-5 w-5" />
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Quarta linha - Banda e Storage */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Quantidade de banda */}
-                      <div>
-                        <label className="text-sm text-muted-foreground">Quantidade de banda</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={formData.banda}
-                          onChange={(e) => handleInputChange('banda', parseInt(e.target.value))}
-                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                          autoComplete="off"
-                        />
-                      </div>
-
-                      {/* Espaço em disco */}
-                      <div>
-                        <label className="text-sm text-muted-foreground">Espaço em disco</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={formData.storage}
-                          onChange={(e) => handleInputChange('storage', parseInt(e.target.value))}
-                          className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Senha */}
-                    <div>
-                      <label className="text-sm text-muted-foreground">Senha</label>
-                      <Input
-                        type="password"
-                        value={formData.senha}
-                        onChange={(e) => handleInputChange('senha', e.target.value)}
-                        className="mt-1 bg-card border-border/30 hover:bg-muted/10 focus:bg-muted/10 rounded-md shadow-inner input-neomorphic"
-                        placeholder="••••••••••"
-                        autoComplete="new-password"
-                      />
                     </div>
 
                     {/* Informações do Provedor - disponível para todos os usuários */}

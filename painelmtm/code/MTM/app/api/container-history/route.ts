@@ -60,12 +60,22 @@ export async function GET(request: NextRequest) {
     }
     
     // Buscar registros históricos para o IP e intervalo de tempo especificados
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('docker_stats')
       .select('created_at, stats')
       .eq('ip', ip)
       .gte('created_at', startTime.toISOString())
       .order('created_at', { ascending: true })
+      
+    // Adicionar log para depuração
+    console.log(`Buscando histórico de container para IP ${ip}, container ${containerId}, intervalo ${timeRange}`)
+    
+    // Log para depuração
+    if (!data || data.length === 0) {
+      console.log(`Nenhum dado encontrado na tabela docker_stats para o IP ${ip}`)
+    } else {
+      console.log(`Encontrados ${data.length} registros na tabela docker_stats`)
+    }
     
     if (error) {
       console.error('Erro ao buscar histórico do container:', error)
@@ -90,7 +100,7 @@ export async function GET(request: NextRequest) {
         'TB': 1024 * 1024 * 1024 * 1024
       }
       
-      const match = value.match(/(\\d+(\\.\\d+)?)\\s*([KMGT]?B)/i)
+      const match = value.match(/(\d+(\.\d+)?)\s*([KMGT]?B)/i)
       if (!match) return 0
       
       const num = parseFloat(match[1])
@@ -101,30 +111,60 @@ export async function GET(request: NextRequest) {
     
     // Extrair dados históricos do container específico
     const containerHistory = data.map(record => {
-      const containerData = record.stats.find((c: any) => c.ID === containerId)
-      
-      if (!containerData) return null
-      
-      // Processar NetIO para extrair valores em bytes
-      const netIOParts = containerData.NetIO?.split(' / ') || ['0B', '0B']
-      const rxValue = netIOParts[0].trim()
-      const txValue = netIOParts[1]?.trim() || '0B'
-      
-      // Processar BlockIO para extrair valores em bytes
-      const blockIOParts = containerData.BlockIO?.split(' / ') || ['0B', '0B']
-      const readValue = blockIOParts[0].trim()
-      const writeValue = blockIOParts[1]?.trim() || '0B'
-      
-      return {
-        timestamp: record.created_at,
-        cpu: parseFloat(containerData.CPUPerc.replace('%', '')) || 0,
-        memory: parseFloat(containerData.MemPerc.replace('%', '')) || 0,
-        netRx: convertToBytes(rxValue),
-        netTx: convertToBytes(txValue),
-        blockRead: convertToBytes(readValue),
-        blockWrite: convertToBytes(writeValue)
+      try {
+        // Verificar se stats existe e tem container_list
+        if (!record.stats || !record.stats.container_list || !Array.isArray(record.stats.container_list)) {
+          console.log(`Registro sem container_list válido: ${record.created_at}`)
+          return null
+        }
+        
+        // Encontrar o container pelo ID
+        const containerData = record.stats.container_list.find((c: any) => c.id === containerId)
+        
+        if (!containerData) {
+          console.log(`Container ${containerId} não encontrado no registro de ${record.created_at}`)
+          return null
+        }
+        
+        // Normalizar campos (suporte para diferentes formatos)
+        const cpuPerc = containerData.cpu_perc || (containerData.cpu_percent ? `${containerData.cpu_percent}%` : '0%')
+        const memPerc = containerData.mem_perc || (containerData.mem_percent ? `${containerData.mem_percent}%` : '0%')
+        const netIO = containerData.net_io || '0B / 0B'
+        const blockIO = containerData.block_io || '0B / 0B'
+        
+        // Processar NetIO para extrair valores em bytes
+        const netIOParts = netIO.split(' / ') || ['0B', '0B']
+        const rxValue = netIOParts[0].trim()
+        const txValue = netIOParts[1]?.trim() || '0B'
+        
+        // Processar BlockIO para extrair valores em bytes
+        const blockIOParts = blockIO.split(' / ') || ['0B', '0B']
+        const readValue = blockIOParts[0].trim()
+        const writeValue = blockIOParts[1]?.trim() || '0B'
+        
+        // Usar valores brutos se disponíveis
+        const netRxRaw = containerData.net_io_rx_bytes_raw || convertToBytes(rxValue)
+        const netTxRaw = containerData.net_io_tx_bytes_raw || convertToBytes(txValue)
+        const blockReadRaw = containerData.block_io_read_bytes_raw || convertToBytes(readValue)
+        const blockWriteRaw = containerData.block_io_write_bytes_raw || convertToBytes(writeValue)
+        
+        return {
+          timestamp: record.created_at,
+          containerName: containerData.name || containerId,
+          cpu: parseFloat(cpuPerc.replace('%', '')) || 0,
+          memory: parseFloat(memPerc.replace('%', '')) || 0,
+          netRx: netRxRaw,
+          netTx: netTxRaw,
+          blockRead: blockReadRaw,
+          blockWrite: blockWriteRaw
+        }
+      } catch (err) {
+        console.error(`Erro ao processar registro de ${record.created_at}:`, err)
+        return null
       }
     }).filter(Boolean) // Remover entradas nulas
+    
+    console.log(`Encontrados ${containerHistory.length} registros históricos para o container ${containerId}`)
     
     // Retornar o histórico do container
     return NextResponse.json(containerHistory)

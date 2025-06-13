@@ -1,7 +1,6 @@
 'use client'
 
 import { Sidebar } from '@/components/navigation/sidebar'
-import { DashboardNavbar } from '@/components/navigation/dashboard-navbar'
 import { ThemeProvider } from '@/contexts/theme-context'
 import { PageTransition } from '@/components/transitions/page-transition'
 
@@ -14,7 +13,6 @@ export default function ProtectedLayout({
     <ThemeProvider>
       <div className="min-h-screen bg-background">
         <Sidebar />
-        <DashboardNavbar />
         
         {/* Conteúdo principal */}
         <main className="relative transition-all duration-300 min-h-screen bg-background pl-16 lg:pl-64 pt-16">

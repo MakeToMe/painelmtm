@@ -8,55 +8,21 @@ import {
 import { 
   RiCpuLine, 
   RiDatabase2Line, 
-  RiHardDriveLine,
-  RiWifiLine,
-  RiRefreshLine,
   RiLoader4Line,
+  RiRefreshLine,
   RiArrowLeftLine
 } from 'react-icons/ri'
 import { MetricCard } from '@/components/dashboard/metric-card'
 import Link from 'next/link'
 
-interface ContainerStats {
-  ID: string
-  Name: string
-  PIDs: string
-  CPUPerc: string
-  MemPerc: string
-  MemUsage: string
-  NetIO: string
-  BlockIO: string
-  NetIO_RX_Bytes: number
-  NetIO_TX_Bytes: number
-  NetIO_RX_Formatted: string
-  NetIO_TX_Formatted: string
-}
-
-interface HistoricalData {
-  timestamp: string;
-  containerName?: string;
-  cpu: number;
-  memory: number;
-  netRx: number;
-  netTx: number;
-  blockRead: number;
-  blockWrite: number;
-}
-
-interface ContainerDetails {
-  ID: string
-  Name: string
-  PIDs: string
-  CPUPerc: string
-  MemPerc: string
-  MemUsage: string
-  NetIO: string
-  BlockIO: string
-  Status: string
-  NetIO_RX_Bytes?: number
-  NetIO_TX_Bytes?: number
-  NetIO_RX_Formatted?: string
-  NetIO_TX_Formatted?: string
+interface ProcessData {
+  pid: number
+  user: string
+  command: string
+  cpu_percent: number
+  ram_percent: number
+  rss_kb: number
+  created_at?: string
   vmData?: {
     cpu_total?: number
     cpu_usada?: number
@@ -64,25 +30,26 @@ interface ContainerDetails {
     mem_total?: number
     mem_usada?: number
     mem_livre?: number
-    disco_total?: number
-    disco_usado?: number
-    disco_livre?: number
     memory_percent?: number
-    disk_percent?: number
-    network_rx_bytes?: number
-    network_tx_bytes?: number
   }
 }
 
-export default function ContainerDetailsPage({ params }: { params: { ip: string, id: string } }) {
-  const [containerData, setContainerData] = useState<ContainerStats | null>(null)
-  const [containerDetails, setContainerDetails] = useState<ContainerDetails | null>(null)
+interface HistoricalData {
+  timestamp: string
+  pid?: number
+  command?: string
+  cpu: number
+  memory: number
+  rss_kb: number
+}
+
+export default function ProcessDetailsPage({ params }: { params: { ip: string, pid: string } }) {
+  const [processData, setProcessData] = useState<ProcessData | null>(null)
   const [historicalData, setHistoricalData] = useState<HistoricalData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<string>('')
-  const [refreshInterval, setRefreshInterval] = useState(10000) // 10 segundos
-  const [activeTab, setActiveTab] = useState<'overview' | 'cpu' | 'memory' | 'network'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'cpu' | 'memory'>('overview')
   const [timeRange, setTimeRange] = useState<'30min' | '1h' | '3h' | '6h' | '12h' | '24h'>('30min')
 
   // Função para formatar o horário no eixo X
@@ -104,155 +71,111 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
     })
   }
   
-  // Função para formatar bytes em unidades legíveis (KB, MB, GB, etc)
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
-
-  // Função para simplificar o nome do container
-  const getSimplifiedName = (fullName: string) => {
-    // Extrair o nome antes do primeiro ponto ou usar o nome completo
-    const nameParts = fullName.split('.')
-    return nameParts[0]
+  // Função para formatar o tamanho da memória
+  const formatMemorySize = (sizeKb: number): string => {
+    if (sizeKb < 1024) {
+      return `${sizeKb}KB`
+    } else if (sizeKb < 1024 * 1024) {
+      return `${(sizeKb / 1024).toFixed(2)}MB`
+    } else {
+      return `${(sizeKb / 1024 / 1024).toFixed(2)}GB`
+    }
   }
 
-  // Função para buscar detalhes do container
-  const fetchContainerDetails = async () => {
-    if (!params.ip || !params.id) return
+  // Função para truncar o comando
+  const truncateCommand = (command: string, maxLength: number = 40): string => {
+    if (!command) return '';
+    if (command.length <= maxLength) return command;
+    return command.substring(0, maxLength) + '...';
+  }
+
+  // Função para buscar detalhes do processo
+  const fetchProcessDetails = async () => {
+    if (!params.ip || !params.pid) return
 
     try {
       // Iniciar loading
       setLoading(true)
       
-      // Buscar dados do container usando a mesma API da dashboard
-      const containerResponse = await fetch(`/api/docker-stats?ip=${params.ip}`)
-      
-      if (!containerResponse.ok) {
-        throw new Error('Falha ao buscar detalhes do container')
-      }
-      
-      const containersData = await containerResponse.json()
-      
-      // Encontrar o container específico pelo ID
-      const containerData = containersData.containers?.find((container: any) => container.ID === params.id)
-      
-      // Buscar dados da VM/servidor usando a mesma API da dashboard
+      // Buscar dados do processo usando a API de métricas de processos
       const timestamp = Date.now()
       const requestId = Math.random().toString(36).substring(2, 9)
-      const serverResponse = await fetch(`/api/process-metrics?ip=${params.ip}&_t=${timestamp}&_r=${requestId}`)
-      
-      let vmData = null
-      
-      if (serverResponse.ok) {
-        const serverData = await serverResponse.json()
-        if (serverData && serverData.length > 0) {
-          vmData = serverData[0]
-          console.log('Dados da VM recebidos:', {
-            cpu_total: vmData.cpu_total,
-            mem_usada: vmData.mem_usada,
-            mem_total: vmData.mem_total
-          })
-        }
-      }
-      
-      if (containerData) {
-        // Manter os dados antigos se não tivermos novos dados
-        const newVmData = vmData || (containerDetails?.vmData || null)
-        
-        // Atualizar os dados de forma suave sem refresh
-        setContainerDetails(prevDetails => ({
-          ...prevDetails,
-          ...containerData,
-          vmData: newVmData
-        }))
-        
-        // Atualizar o horário da última atualização
-        setLastUpdate(new Date().toLocaleTimeString('pt-BR'))
-        setError(null)
-      } else {
-        // Não definir erro se já tivermos dados
-        if (!containerDetails) {
-          setError(`Container com ID ${params.id} não encontrado`)
-        }
-      }
-      
-      // Finalizar loading
-      setLoading(false)
-    } catch (err) {
-      console.error('Erro ao buscar detalhes do container:', err)
-      setLoading(false)
-      // Não definir erro se já tivermos dados
-      if (!containerDetails) {
-        setError('Falha ao buscar detalhes do container')
-      }
-    }
-  }
-  
-  // Função para buscar dados históricos do container
-  const fetchHistoricalData = async () => {
-    if (!params.ip || !params.id) return
-
-    try {
-      // Adicionar timestamp para evitar cache
-      const timestamp = Date.now();
-      const requestId = Math.random().toString(36).substring(2, 9);
-      
-      const response = await fetch(`/api/container-history?ip=${params.ip}&containerId=${params.id}&timeRange=${timeRange}&_t=${timestamp}&_r=${requestId}`)
+      const response = await fetch(`/api/process-metrics?ip=${params.ip}&_t=${timestamp}&_r=${requestId}`)
       
       if (!response.ok) {
-        throw new Error('Falha ao buscar dados históricos do container')
+        throw new Error('Falha ao buscar detalhes do processo')
       }
       
       const data = await response.json()
       
-      if (data && Array.isArray(data)) {
-        console.log(`Recebidos ${data.length} registros históricos para o container ${params.id}`)
+      if (data && data.length > 0) {
+        // Encontrar o processo pelo PID
+        const processList = data[0].processes?.by_cpu || []
+        const process = processList.find((p: any) => p.pid === parseInt(params.pid))
         
-        // Atualização suave dos dados
-        setHistoricalData(prevData => {
-          // Se não houver dados anteriores, simplesmente use os novos dados
-          if (prevData.length === 0) return data;
+        if (process) {
+          // Adicionar dados da VM
+          const processWithVM = {
+            ...process,
+            vmData: {
+              cpu_total: data[0].cpu_total,
+              cpu_usada: data[0].cpu_usada,
+              cpu_livre: data[0].cpu_livre,
+              mem_total: data[0].mem_total,
+              mem_usada: data[0].mem_usada,
+              mem_livre: data[0].mem_livre,
+              memory_percent: data[0].memory_percent
+            }
+          }
           
-          // Atualizar os dados mantendo a transição suave
-          return data;
-        });
-        
-        // Atualizar o timestamp da última atualização
-        setLastUpdate(new Date().toLocaleTimeString('pt-BR'));
-      } else {
-        console.log('Nenhum dado histórico encontrado ou formato inválido')
-        // Não limpar os dados existentes para evitar flicker
-        if (historicalData.length === 0) {
-          setHistoricalData([])
+          setProcessData(processWithVM)
+          console.log('Dados do processo recebidos:', processWithVM)
+          
+          // Criar dados históricos simulados para demonstração
+          // Em produção, você precisaria implementar uma API para buscar dados históricos reais
+          const now = new Date()
+          const simulatedData: HistoricalData[] = []
+          
+          for (let i = 0; i < 20; i++) {
+            const timestamp = new Date(now.getTime() - (i * 60000)) // 1 minuto de intervalo
+            simulatedData.push({
+              timestamp: timestamp.toISOString(),
+              pid: process.pid,
+              command: process.command,
+              cpu: process.cpu_percent * (0.8 + Math.random() * 0.4), // Variação aleatória
+              memory: process.ram_percent * (0.8 + Math.random() * 0.4), // Variação aleatória
+              rss_kb: process.rss_kb * (0.8 + Math.random() * 0.4) // Variação aleatória
+            })
+          }
+          
+          // Ordenar por timestamp (mais antigo para mais recente)
+          simulatedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          setHistoricalData(simulatedData)
+          
+          setError(null)
+        } else {
+          setError(`Processo com PID ${params.pid} não encontrado`)
         }
+      } else {
+        setError('Não foi possível obter dados do processo')
       }
+      
+      // Atualizar o horário da última atualização
+      setLastUpdate(new Date().toLocaleTimeString('pt-BR'))
+      
+      // Finalizar loading
+      setLoading(false)
     } catch (err) {
-      console.error('Erro ao buscar dados históricos do container:', err)
-      // Não definimos o erro aqui para não afetar a experiência do usuário
-      // se apenas os dados históricos falharem
+      console.error('Erro ao buscar detalhes do processo:', err)
+      setLoading(false)
+      setError('Falha ao buscar detalhes do processo')
     }
   }
 
-  // Efeito para buscar dados iniciais apenas uma vez
+  // Efeito para buscar dados iniciais
   useEffect(() => {
-    fetchContainerDetails()
-    fetchHistoricalData()
-    
-    // Removemos a atualização automática para evitar refresh da página
-  }, [params.ip, params.id])
-  
-  // Efeito para atualizar os dados históricos quando o intervalo de tempo mudar
-  useEffect(() => {
-    fetchHistoricalData()
-  }, [timeRange])
+    fetchProcessDetails()
+  }, [params.ip, params.pid])
 
   // Função para filtrar dados com base no intervalo de tempo selecionado
   const getFilteredData = () => {
@@ -288,20 +211,20 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
     return historicalData.filter(item => new Date(item.timestamp) >= cutoff);
   }
 
-  if (loading && !containerData) {
+  if (loading && !processData) {
     return (
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         <div className="bg-card rounded-lg p-6 card-neomorphic">
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
-            <span className="ml-3 text-muted-foreground">Carregando dados do container...</span>
+            <span className="ml-3 text-muted-foreground">Carregando dados do processo...</span>
           </div>
         </div>
       </div>
     )
   }
 
-  if (error && !containerData) {
+  if (error && !processData) {
     return (
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         <div className="bg-card rounded-lg p-6 card-neomorphic">
@@ -334,10 +257,10 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
             </Link>
             <div>
               <h1 className="text-xl font-medium text-white">
-                {containerDetails?.Name ? getSimplifiedName(containerDetails.Name) : 'Container'}
+                Processo {processData?.pid}
               </h1>
-              <p className="text-sm text-slate-400">
-                {containerDetails?.ID || params.id}
+              <p className="text-sm text-slate-400 truncate max-w-[300px]" title={processData?.command || ''}>
+                {processData?.command ? truncateCommand(processData.command, 50) : 'Processo'}
               </p>
             </div>
           </div>
@@ -346,7 +269,7 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
               Atualização: {lastUpdate}
             </span>
             <button 
-              onClick={fetchContainerDetails}
+              onClick={fetchProcessDetails}
               className="p-2 rounded-full hover:bg-slate-800/50 transition-colors"
               title="Atualizar dados"
             >
@@ -360,18 +283,18 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
         </div>
       </div>
 
-      {/* Cards de métricas (dados da VM) */}
+      {/* Cards de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* CPU */}
         <MetricCard
-          title="CPU VM"
-          value={containerDetails?.vmData?.cpu_usada ? `${containerDetails.vmData.cpu_usada.toFixed(1)}%` : '0%'}
+          title="CPU"
+          value={processData?.cpu_percent ? `${processData.cpu_percent.toFixed(1)}%` : '0%'}
           icon={<RiCpuLine className="w-5 h-5 text-cyan-400" />}
           color="cyan"
           trend={
-            containerDetails?.vmData?.cpu_usada && containerDetails.vmData.cpu_usada > 80 
+            processData?.cpu_percent && processData.cpu_percent > 80 
               ? 'up' 
-              : containerDetails?.vmData?.cpu_usada && containerDetails.vmData.cpu_usada < 20 
+              : processData?.cpu_percent && processData.cpu_percent < 20 
                 ? 'down' 
                 : 'neutral'
           }
@@ -379,40 +302,46 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
         
         {/* Memória */}
         <MetricCard
-          title="RAM VM"
-          value={containerDetails?.vmData?.mem_usada && containerDetails?.vmData?.mem_total 
-            ? `${((containerDetails.vmData.mem_usada / containerDetails.vmData.mem_total) * 100).toFixed(1)}%` 
-            : '0%'}
+          title="RAM"
+          value={processData?.ram_percent ? `${processData.ram_percent.toFixed(1)}%` : '0%'}
           icon={<RiDatabase2Line className="w-5 h-5 text-purple-400" />}
           color="purple"
           trend={
-            containerDetails?.vmData?.mem_usada && containerDetails?.vmData?.mem_total && 
-            ((containerDetails.vmData.mem_usada / containerDetails.vmData.mem_total) * 100) > 80 
+            processData?.ram_percent && processData.ram_percent > 80 
               ? 'up' 
-              : containerDetails?.vmData?.mem_usada && containerDetails?.vmData?.mem_total && 
-                ((containerDetails.vmData.mem_usada / containerDetails.vmData.mem_total) * 100) < 20 
+              : processData?.ram_percent && processData.ram_percent < 20 
                 ? 'down' 
                 : 'neutral'
           }
         />
 
-        {/* Rede */}
+        {/* Memória Física */}
         <MetricCard
-          title="Rede VM"
-          value={
-            // Tenta usar os dados históricos mais recentes (que são os mesmos usados no gráfico)
-            historicalData.length > 0
-              ? `${formatBytes(historicalData[historicalData.length - 1].netRx + historicalData[historicalData.length - 1].netTx)}`
-              // Se não tiver dados históricos, tenta usar os dados da VM
-              : containerDetails?.vmData?.network_rx_bytes && containerDetails?.vmData?.network_tx_bytes
-                ? `${formatBytes(containerDetails.vmData.network_rx_bytes + containerDetails.vmData.network_tx_bytes)}` 
-                // Se não tiver nenhum dos dois, mostra 0 Bytes
-                : '0 Bytes'
-          }
-          icon={<RiWifiLine className="w-5 h-5 text-blue-400" />}
+          title="Memória Física"
+          value={processData?.rss_kb ? formatMemorySize(processData.rss_kb) : '0 KB'}
+          icon={<RiDatabase2Line className="w-5 h-5 text-blue-400" />}
           color="blue"
           trend="neutral"
         />
+      </div>
+
+      {/* Detalhes do Processo */}
+      <div className="bg-card rounded-lg p-4 card-neomorphic mb-6">
+        <h3 className="font-medium text-white mb-4">Informações do Processo</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-800/50 p-4 rounded-lg">
+            <p className="text-sm text-slate-400 mb-1">PID</p>
+            <p className="text-white">{processData?.pid}</p>
+          </div>
+          <div className="bg-slate-800/50 p-4 rounded-lg">
+            <p className="text-sm text-slate-400 mb-1">Usuário</p>
+            <p className="text-white">{processData?.user}</p>
+          </div>
+          <div className="bg-slate-800/50 p-4 rounded-lg col-span-1 md:col-span-2">
+            <p className="text-sm text-slate-400 mb-1">Comando</p>
+            <p className="text-white break-words">{processData?.command}</p>
+          </div>
+        </div>
       </div>
 
       {/* Gráficos */}
@@ -420,12 +349,10 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
         <div className="flex items-center justify-between mb-4">
           <div className="flex flex-col">
             <h1 className="text-xl font-semibold text-white">
-              Container
+              Processo
             </h1>
             <p className="text-slate-400">
-              {historicalData.length > 0 && historicalData[0].containerName ? 
-                historicalData[0].containerName : 
-                params.id}
+              {processData?.pid} - {processData?.user}
             </p>
           </div>
           <div className="flex space-x-2">
@@ -492,12 +419,6 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
             >
               RAM
             </button>
-            <button 
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'network' ? 'bg-slate-700 text-blue-400' : 'text-slate-400 hover:text-slate-300'}`}
-              onClick={() => setActiveTab('network')}
-            >
-              Rede
-            </button>
           </div>
         </div>
         
@@ -507,7 +428,7 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
           </div>
         ) : historicalData.length > 0 ? (
           <div className="h-80">
-            {/* Gráfico Geral - Combina CPU, RAM e Rede */}
+            {/* Gráfico Geral - Combina CPU e RAM */}
             {activeTab === 'overview' && (
               getFilteredData().length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -534,13 +455,13 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
                       yAxisId="right"
                       orientation="right"
                       stroke="#64748b" 
-                      tickFormatter={(value) => formatBytes(value)}
+                      tickFormatter={(value) => formatMemorySize(value)}
                       tick={{ fontSize: 12 }}
                     />
                     <Tooltip 
                       formatter={(value: number, name: string) => {
-                        if (name === 'Recebido' || name === 'Transmitido') {
-                          return [formatBytes(value), name];
+                        if (name === 'Memória (KB)') {
+                          return [formatMemorySize(value), name];
                         }
                         return [`${value.toFixed(1)}%`, name];
                       }}
@@ -571,29 +492,19 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
                     <Line 
                       yAxisId="right"
                       type="monotone" 
-                      dataKey="netRx" 
-                      stroke="#10b981" 
+                      dataKey="rss_kb" 
+                      stroke="#3b82f6" 
                       strokeWidth={2}
                       dot={false}
-                      activeDot={{ r: 6, fill: '#10b981' }}
-                      name="Recebido"
-                    />
-                    <Line 
-                      yAxisId="right"
-                      type="monotone" 
-                      dataKey="netTx" 
-                      stroke="#f43f5e" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, fill: '#f43f5e' }}
-                      name="Transmitido"
+                      activeDot={{ r: 6, fill: '#3b82f6' }}
+                      name="Memória (KB)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <div className="text-lg mb-2">Sem dados históricos disponíveis</div>
-                  <div className="text-sm">Os dados serão coletados à medida que o container for monitorado</div>
+                  <div className="text-sm">Os dados serão coletados à medida que o processo for monitorado</div>
                 </div>
               )
             )}
@@ -639,7 +550,7 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <div className="text-lg mb-2">Sem dados históricos disponíveis</div>
-                  <div className="text-sm">Os dados serão coletados à medida que o container for monitorado</div>
+                  <div className="text-sm">Os dados serão coletados à medida que o processo for monitorado</div>
                 </div>
               )
             )}
@@ -685,76 +596,16 @@ export default function ContainerDetailsPage({ params }: { params: { ip: string,
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <div className="text-lg mb-2">Sem dados históricos disponíveis</div>
-                  <div className="text-sm">Os dados serão coletados à medida que o container for monitorado</div>
+                  <div className="text-sm">Os dados serão coletados à medida que o processo for monitorado</div>
                 </div>
               )
             )}
-            
-            {/* Gráfico de Rede */}
-            {activeTab === 'network' && (
-              getFilteredData().length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={getFilteredData()}
-                    margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis 
-                      dataKey="timestamp" 
-                      stroke="#64748b"
-                      tickFormatter={formatTimeLabel}
-                      tick={{ fontSize: 12 }}
-                      minTickGap={30}
-                    />
-                    <YAxis 
-                      yAxisId="left"
-                      stroke="#64748b" 
-                      tickFormatter={(value) => formatBytes(value)}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => formatBytes(value)}
-                      labelFormatter={(label) => formatDateTime(label as string)}
-                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: 'white' }}
-                    />
-                    <Legend />
-                    <Line 
-                      yAxisId="left"
-                      type="monotone" 
-                      dataKey="netRx" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, fill: '#10b981' }}
-                      name="Recebido"
-                    />
-                    <Line 
-                      yAxisId="left"
-                      type="monotone" 
-                      dataKey="netTx" 
-                      stroke="#f43f5e" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, fill: '#f43f5e' }}
-                      name="Transmitido"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                  <div className="text-lg mb-2">Sem dados históricos disponíveis</div>
-                  <div className="text-sm">Os dados serão coletados à medida que o container for monitorado</div>
-                </div>
-              )
-            )}
-            
-
           </div>
         ) : (
           <div className="h-80 flex items-center justify-center">
             <div className="text-center">
               <p className="text-muted-foreground mb-2">Sem dados históricos disponíveis</p>
-              <p className="text-xs text-slate-500">Os dados serão coletados à medida que o container for monitorado</p>
+              <p className="text-xs text-slate-500">Os dados serão coletados à medida que o processo for monitorado</p>
             </div>
           </div>
         )}

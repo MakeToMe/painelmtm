@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServer } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { signJWT } from '@/lib/jwt'
@@ -10,15 +10,7 @@ export async function POST(request: Request) {
     const { email, password, loginMethod } = await request.json()
     console.log('Recebido request de login:', { email, loginMethod })
     
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        db: {
-          schema: 'mtm'
-        }
-      }
-    )
+    const supabase = createSupabaseServer()
 
     // Hash da senha
     const hashedPassword = createHash('sha256')

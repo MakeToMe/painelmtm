@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServer } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
-    // Criar cliente Supabase
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        db: {
-          schema: 'mtm'
-        },
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true
-        }
-      }
-    )
+    // Cliente Supabase centralizado (service-role)
+    const supabase = createSupabaseServer()
     
     // Obter o IP do servidor e o intervalo de tempo da query string
     const searchParams = request.nextUrl.searchParams
     const ip = searchParams.get('ip')
     const timeRange = searchParams.get('timeRange') || '30min'
+    const requestId = searchParams.get('_r') || 'unknown'
     
     if (!ip) {
       return NextResponse.json(
@@ -34,7 +22,6 @@ export async function GET(request: NextRequest) {
     // Calcular o timestamp de início com base no intervalo de tempo
     const now = new Date()
     let startTime = new Date(now)
-    let useAggregation = false
     let samplingInterval = 1 // Pegar 1 a cada X registros
     
     // Ajustar o tempo de início e a estratégia de amostragem com base no intervalo selecionado
@@ -65,19 +52,19 @@ export async function GET(request: NextRequest) {
         startTime.setMinutes(now.getMinutes() - 30)
     }
     
-    console.log(`Buscando dados para intervalo: ${timeRange}, de ${startTime.toISOString()} até agora`)
-    console.log(`Estratégia: ${useAggregation ? 'Agregação' : 'Amostragem'}, intervalo: ${samplingInterval}`)
+    console.log(`[${requestId}] Buscando dados para intervalo: ${timeRange}, de ${startTime.toISOString()} até agora`)
+    console.log(`[${requestId}] Estratégia: Amostragem, intervalo: ${samplingInterval}`)
     
-    // Buscar os dados de monitoramento para o período especificado
+    // Buscar os dados de monitoramento para o período especificado da tabela process_metrics
     const { data, error } = await supabase
-      .from('vm_stats')
+      .from('process_metrics')
       .select('*')
-      .eq('ip', ip)
+      .eq('server_ip', ip)
       .gte('created_at', startTime.toISOString())
       .order('created_at', { ascending: false })
     
     if (error) {
-      console.error('Erro ao buscar dados de monitoramento:', error)
+      console.error(`[${requestId}] Erro ao buscar dados de monitoramento:`, error)
       return NextResponse.json(
         { error: 'Erro ao buscar dados de monitoramento' },
         { status: 500 }
@@ -92,6 +79,7 @@ export async function GET(request: NextRequest) {
         created_at: new Date().toISOString(),
         titular: 'Teste',
         ip: ip,
+        server_ip: ip,
         mem_total: 8192, // 8GB em MB
         mem_usada: 4096, // 4GB em MB
         mem_usada_p: 50, // 50%
@@ -107,18 +95,63 @@ export async function GET(request: NextRequest) {
         disco_livre_p: 40 // 40%
       }]
       
-      console.log('Retornando dados simulados para teste')
+      console.log(`[${requestId}] Retornando dados simulados para teste`)
       return NextResponse.json(mockData)
     }
     
-    console.log(`Dados de monitoramento encontrados: ${data.length} registros`)
+    console.log(`[${requestId}] Dados de monitoramento encontrados: ${data.length} registros`)
+    
+    // Transformar os dados da tabela process_metrics para o formato esperado pelo componente
+    const transformedData = data.map(item => {
+      // Calcular porcentagens se não estiverem presentes
+      const mem_usada_p = typeof item.mem_usada === 'number' && typeof item.mem_total === 'number' 
+        ? Number(((Number(item.mem_usada) / Number(item.mem_total)) * 100).toFixed(2))
+        : 0;
+      
+      const mem_disponivel = typeof item.mem_total === 'number' && typeof item.mem_usada === 'number'
+        ? Number(item.mem_total) - Number(item.mem_usada)
+        : 0;
+      
+      const mem_disponivel_p = 100 - mem_usada_p;
+      
+      const cpu_livre = typeof item.cpu_total === 'number' && typeof item.cpu_usada === 'number'
+        ? Number(item.cpu_total) - Number(item.cpu_usada)
+        : 0;
+      
+      // Calcular porcentagens de disco se disponíveis
+      const disco_uso_p = typeof item.disco_total === 'number' && typeof item.disco_usado === 'number'
+        ? Number(((Number(item.disco_usado) / Number(item.disco_total)) * 100).toFixed(2))
+        : 0;
+      
+      const disco_livre_p = 100 - disco_uso_p;
+      
+      return {
+        uid: item.uid,
+        created_at: item.created_at,
+        titular: item.titular || '',
+        ip: item.server_ip, // Usar server_ip como ip para compatibilidade
+        mem_total: Number(item.mem_total) || 0,
+        mem_usada: Number(item.mem_usada) || 0,
+        mem_usada_p,
+        mem_disponivel_p,
+        mem_disponivel,
+        cpu_total: Number(item.cpu_total) || 0,
+        cpu_livre,
+        cpu_usada: Number(item.cpu_usada) || 0,
+        disco_total: Number(item.disco_total) || 0,
+        disco_usado: Number(item.disco_usado) || 0,
+        disco_livre: Number(item.disco_livre) || 0,
+        disco_uso_p,
+        disco_livre_p
+      };
+    });
     
     // Aplicar amostragem para reduzir o volume de dados enviados ao cliente
-    let processedData = data
+    let processedData = transformedData;
     
     if (samplingInterval > 1) {
       // Ordenar por data (mais recente primeiro)
-      processedData = data.sort((a, b) => 
+      processedData = transformedData.sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
       
@@ -128,10 +161,17 @@ export async function GET(request: NextRequest) {
       // Aplicar amostragem (pegar 1 a cada N registros)
       processedData = processedData.filter((_, index) => index === 0 || index % samplingInterval === 0)
       
-      console.log(`Dados após amostragem: ${processedData.length} registros`)
+      console.log(`[${requestId}] Dados após amostragem: ${processedData.length} registros`)
     }
     
-    return NextResponse.json(processedData)
+    // Adicionar headers para evitar cache
+    const headers = new Headers()
+    headers.append('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    headers.append('Pragma', 'no-cache')
+    headers.append('Expires', '0')
+    headers.append('Surrogate-Control', 'no-store')
+    
+    return NextResponse.json(processedData, { headers })
   } catch (error) {
     console.error('Erro na API de monitoramento:', error)
     return NextResponse.json(

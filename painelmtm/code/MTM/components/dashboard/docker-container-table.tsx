@@ -123,9 +123,45 @@ export function DockerContainerTable({ serverIp, refreshInterval = 10000 }: Dock
       
       const data = await response.json()
       
-      if (data && Array.isArray(data)) {
-        // Adicionar status "running" para todos os containers
-        const containersWithStatus = data.map(container => ({
+      // Verificar se a resposta contém o novo formato (containers + cpu)
+      if (data && data.containers && Array.isArray(data.containers)) {
+        // Processar dados dos containers
+        const containersWithStatus = data.containers.map((container: DockerContainer) => ({
+          ...container,
+          Status: 'running'
+        }))
+        
+        setContainers(containersWithStatus)
+        
+        // Processar dados de CPU se disponíveis
+        if (data.cpu && data.cpu.cores) {
+          // Emitir um evento personalizado com os dados de CPU
+          // Este evento pode ser capturado por outros componentes
+          const cpuDataEvent = new CustomEvent('cpu-cores-data', {
+            detail: {
+              cores: data.cpu.cores,
+              total: data.cpu.total,
+              usada: data.cpu.usada,
+              livre: data.cpu.livre
+            }
+          })
+          
+          // Disparar o evento no window para que outros componentes possam ouvi-lo
+          window.dispatchEvent(cpuDataEvent)
+        }
+        
+        // Atualizar horário da última atualização
+        const now = new Date()
+        setLastUpdate(
+          now.toLocaleTimeString('pt-BR', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        )
+      } else if (data && Array.isArray(data)) {
+        // Compatibilidade com o formato antigo (apenas array de containers)
+        const containersWithStatus = data.map((container: DockerContainer) => ({
           ...container,
           Status: 'running'
         }))

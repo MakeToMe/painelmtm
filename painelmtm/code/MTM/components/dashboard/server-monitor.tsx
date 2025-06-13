@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -42,11 +41,40 @@ interface MonitorData {
   disco_livre_p: number
 }
 
+interface ProcessMetrics {
+  uid: string
+  created_at: string
+  server_ip: string
+  hostname: string
+  processes: {
+    by_cpu: {
+      pid: number
+      rank: number
+      user: string
+      rss_kb: number
+      command: string
+      cpu_percent: number
+      ram_percent: number
+    }[]
+  }
+  cpu_cores: { core: number; usage: number }[]
+  cpu_total: number | string
+  cpu_usada: number | string
+  cpu_livre: number | string
+  mem_total: number | string
+  mem_usada: number | string
+  mem_livre: number | string
+  disco_total: number | string
+  disco_usado: number
+  disco_livre: number
+}
+
 interface ServerMonitorProps {
   serverIp: string
   serverCpu: number
   serverRam: number
   serverStorage: number
+  processMetricsData?: ProcessMetrics | null
 }
 
 // Função para formatar data para exibição no gráfico
@@ -80,7 +108,7 @@ const formatPercent = (value: number) => {
   return `${value.toFixed(1)}%`;
 };
 
-export function ServerMonitor({ serverIp, serverCpu, serverRam, serverStorage }: ServerMonitorProps) {
+export function ServerMonitor({ serverIp, serverCpu, serverRam, serverStorage, processMetricsData }: ServerMonitorProps) {
   const [monitorData, setMonitorData] = useState<MonitorData | null>(null)
   const [monitorHistory, setMonitorHistory] = useState<MonitorData[]>([])
   const [lastUpdate, setLastUpdate] = useState<string>('')
@@ -90,7 +118,6 @@ export function ServerMonitor({ serverIp, serverCpu, serverRam, serverStorage }:
   const [availableRange, setAvailableRange] = useState<string | null>(null)
   const [dataLimitMessage, setDataLimitMessage] = useState<string>('')
   const [availableTimeRange, setAvailableTimeRange] = useState<string | null>(null)
-  const realtimeSubscription = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   // Formatar os dados para os gráficos
   const cpuData = monitorHistory.map(item => ({
@@ -268,62 +295,6 @@ export function ServerMonitor({ serverIp, serverCpu, serverRam, serverStorage }:
     // Limpar intervalo ao desmontar componente
     return () => clearInterval(interval)
   }, [serverIp, timeRange]) // Refazer a busca quando o IP ou o intervalo de tempo mudar
-  
-  // Configurar a subscrição realtime
-  useEffect(() => {
-    if (!serverIp) return
-    
-    // Configurar subscrição realtime
-    const setupRealtimeSubscription = async () => {
-      // Limpar subscrição anterior se existir
-      if (realtimeSubscription.current) {
-        await realtimeSubscription.current.unsubscribe()
-      }
-      
-      // Criar nova subscrição
-      const channel = supabase
-        .channel('vm-stats-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'mtm',
-            table: 'vm_stats',
-            filter: `ip=eq.${serverIp}`
-          },
-          (payload) => {
-            console.log('Novo dado de monitoramento recebido via realtime:', payload)
-            const newData = payload.new as MonitorData
-            
-            if (newData && 
-                newData.mem_total !== undefined && 
-                newData.cpu_usada !== undefined && 
-                newData.disco_total !== undefined) {
-              
-              setMonitorData(newData)
-              
-              // Adicionar ao histórico mantendo a ordem cronológica
-              setMonitorHistory(prev => {
-                const newHistory = [...prev, newData].slice(-10); // Manter os 10 mais recentes
-                return newHistory;
-              })
-            }
-          }
-        )
-        .subscribe()
-      
-      realtimeSubscription.current = channel
-    }
-    
-    setupRealtimeSubscription()
-    
-    // Limpar subscrição ao desmontar
-    return () => {
-      if (realtimeSubscription.current) {
-        realtimeSubscription.current.unsubscribe()
-      }
-    }
-  }, [serverIp])
 
   // Função para calcular o domínio dinâmico do eixo Y para RAM
   const calculateRamDomain = () => {
@@ -359,83 +330,7 @@ export function ServerMonitor({ serverIp, serverCpu, serverRam, serverStorage }:
 
   return (
     <div className="space-y-6">
-      {/* Cards de monitoramento */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Card de CPU */}
-        <MetricCard
-          title="CPU Usage"
-          value={monitorData ? `${monitorData.cpu_usada.toFixed(0)}%` : '0%'}
-          subtitle={monitorData ? `${serverCpu} GHz | ${monitorData.cpu_total ? monitorData.cpu_total.toFixed(0) : 4} Cores` : '-'}
-          icon={<RiCpuLine className="w-5 h-5 text-cyan-400" />}
-          color="cyan"
-          trend={monitorData && monitorData.cpu_usada > 80 ? 'up' : monitorData && monitorData.cpu_usada < 20 ? 'down' : 'neutral'}
-          chart={
-            monitorData && (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={cpuData.slice(-5)}>
-                  <Bar dataKey="value" fill="#22d3ee" />
-                </BarChart>
-              </ResponsiveContainer>
-            )
-          }
-        />
-
-        {/* Card de Memória */}
-        <MetricCard
-          title="Memory"
-          value={monitorData ? `${monitorData.mem_usada_p.toFixed(0)}%` : '0%'}
-          subtitle={monitorData ? 
-            `${(monitorData.mem_usada / 1024).toFixed(1)} GB / ${(monitorData.mem_total / 1024).toFixed(1)} GB` : 
-            `${serverRam} GB`}
-          icon={<RiDatabase2Line className="w-5 h-5 text-purple-400" />}
-          color="purple"
-          trend={monitorData && monitorData.mem_usada_p > 80 ? 'up' : monitorData && monitorData.mem_usada_p < 20 ? 'down' : 'neutral'}
-          chart={
-            monitorData && (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={ramData.slice(-5)}>
-                  <Line type="monotone" dataKey="value" stroke="#a855f7" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            )
-          }
-        />
-
-        {/* Card de Armazenamento */}
-        <MetricCard
-          title="Storage"
-          value={monitorData ? `${monitorData.disco_uso_p.toFixed(0)}%` : '0%'}
-          subtitle={monitorData ? 
-            `${monitorData.disco_usado.toFixed(1)} GB / ${monitorData.disco_total.toFixed(1)} GB` : 
-            `${serverStorage} GB`}
-          icon={<RiHardDriveLine className="w-5 h-5 text-green-400" />}
-          color="green"
-          trend={monitorData && monitorData.disco_uso_p > 80 ? 'up' : monitorData && monitorData.disco_uso_p < 20 ? 'down' : 'neutral'}
-          chart={
-            monitorData && (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Usado', value: monitorData.disco_uso_p },
-                      { name: 'Livre', value: monitorData.disco_livre_p }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={15}
-                    outerRadius={24}
-                    paddingAngle={0}
-                    dataKey="value"
-                  >
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#1e293b" />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            )
-          }
-        />
-      </div>
+      {/* Removidos os cards duplicados de CPU, Memory e Storage */}
 
       {/* Área para os gráficos de monitoramento */}
       <div className="grid grid-cols-1 gap-6">

@@ -5,8 +5,7 @@ import { useState, useEffect } from "react";
 import { ChatContainer } from "./chat-container";
 import { VisitorStorage } from "@/lib/storage/visitor-storage";
 import { sendVisitorMessage } from "@/lib/services/visitor-service";
-import { getChatHistory, ChatMessage as DBChatMessage } from "@/lib/supabase/chat";
-import { supabase } from "@/lib/supabase";
+import { getChatHistory } from "@/lib/supabase/chat";
 
 interface Message {
   content: string;
@@ -20,7 +19,7 @@ export function FAQSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
-  // Carregar histórico de mensagens e configurar realtime
+  // Carregar histórico de mensagens e configurar polling
   useEffect(() => {
     const loadChatHistory = async () => {
       const visitorStorage = new VisitorStorage();
@@ -56,39 +55,23 @@ export function FAQSection() {
           }]);
         }
 
-        // Configura o realtime apenas se tiver um chat_id
-        const channel = supabase
-          .channel('chat_changes')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'mtm',
-              table: 'chat_faq',
-              filter: `chat_id=eq.${uid}`
-            },
-            async (payload) => {
-              console.log('Realtime update:', payload);
-              
-              if (payload.eventType === 'INSERT') {
-                const newMessage = payload.new as DBChatMessage;
-                // Só adiciona se for uma mensagem do assistente (as do visitante já são adicionadas localmente)
-                if (newMessage.sender === 'Assistente') {
-                  setMessages(prev => [...prev, {
-                    content: newMessage.mensagem,
-                    isUser: false,
-                    timestamp: newMessage.created_at, // O timestamp já vem formatado do banco
-                  }]);
-                }
-              }
-            }
-          )
-          .subscribe();
+        // Polling simples a cada 5s para buscar novas mensagens enquanto a página estiver aberta
+        const interval = setInterval(async () => {
+          const updated = await getChatHistory(uid)
+          setMessages(prev => {
+            if (updated.length === prev.length) return prev
+            // converte
+            const formatted = updated.map(msg => ({
+              content: msg.mensagem,
+              isUser: msg.sender === 'Visitante',
+              timestamp: msg.created_at
+            }))
+            return formatted
+          })
+        }, 5000)
 
-        // Cleanup function
-        return () => {
-          channel.unsubscribe();
-        };
+        // Cleanup
+        return () => clearInterval(interval)
       } else {
         // Mensagem inicial quando não há histórico
         setMessages([{

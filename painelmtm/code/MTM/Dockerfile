@@ -17,7 +17,7 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG SUPABASE_SERVICE_ROLE_KEY
 
-# Build da aplicação
+# Build da aplicação com output standalone
 RUN npm run build
 
 # Production stage

@@ -1,24 +1,43 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { signJWT } from '@/lib/jwt'
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export async function POST(request: Request) {
   try {
-    const { email, password, userData } = await request.json()
-    console.log('Dados recebidos:', { email, userData })
+    // Obter dados da requisição
+    const body = await request.json()
+    const { email, password, nome, whatsapp } = body
+    console.log('Dados recebidos:', { email, nome, whatsapp })
+    
+    // Verificar se os dados obrigatórios estão presentes
+    if (!email || !password || !nome) {
+      console.error('Dados incompletos:', { email, nome, whatsapp })
+      return NextResponse.json({ error: 'Dados incompletos. Email, senha e nome são obrigatórios.' }, { status: 400 })
+    }
     
     // Hash da senha
     const hashedPassword = createHash('sha256')
       .update(password)
       .digest('hex')
 
+    // Inicializar cliente Supabase com schema mtm
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        db: {
+          schema: 'mtm'
+        }
+      }
+    )
+    
     // Verificar se usuário já existe
     const { data: users, error: checkError } = await supabase
       .from('mtm_users')
-      .select()
+      .select('*')
       .eq('email', email)
 
     if (checkError) {
@@ -35,6 +54,8 @@ export async function POST(request: Request) {
         { status: 409 }
       )
     }
+    
+    console.log('Dados para inserção:', { email, nome, whatsapp })
 
     // Criar novo usuário
     const { error: createError } = await supabase
@@ -43,8 +64,8 @@ export async function POST(request: Request) {
         email,
         password: hashedPassword,
         email_valid: true,
-        nome: userData.nome,
-        whatsapp: userData.whatsapp,
+        nome,
+        whatsapp,
       })
 
     if (createError) {
@@ -55,7 +76,7 @@ export async function POST(request: Request) {
     // Gerar token JWT
     const token = await signJWT({ 
       email,
-      nome: userData.nome
+      nome
     })
 
     // Retornar token e dados do usuário
@@ -63,7 +84,8 @@ export async function POST(request: Request) {
       token,
       user: {
         email,
-        nome: userData.nome
+        nome,
+        whatsapp
       }
     })
   } catch (error: any) {
